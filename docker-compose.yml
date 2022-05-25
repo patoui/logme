@@ -7,8 +7,6 @@ services:
     image: yandex/clickhouse-server
     ports:
       - "8123:8123"
-    volumes:
-      - ./clickhouse:/var/lib/clickhouse
     networks:
       - app-network
 
