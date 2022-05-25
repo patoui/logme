@@ -1,0 +1,33 @@
+version: "3.7"
+
+services:
+
+  database:
+    container_name: logme_database
+    image: yandex/clickhouse-server
+    ports:
+      - "8123:8123"
+    volumes:
+      - ./clickhouse:/var/lib/clickhouse
+    networks:
+      - app-network
+
+  server:
+    container_name: logme_server
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    env_file: .env
+    depends_on:
+      - database
+    networks:
+      - default
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/go/src/github.com/patoui/logme
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
