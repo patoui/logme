@@ -1,14 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
+
+	chi "github.com/go-chi/chi/v5"
+	"github.com/patoui/logme/internal/logme"
 )
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Welcome to LogMe!")
-	})
+	s := CreateNewServer()
+	s.MountHandlers()
+	http.ListenAndServe(":8080", s.Router)
+}
 
-	http.ListenAndServe(":8080", nil)
+type Server struct {
+	Router *chi.Mux
+	// Db, config can be added here
+}
+
+func CreateNewServer() *Server {
+	s := &Server{}
+	s.Router = chi.NewRouter()
+	return s
+}
+
+func (s *Server) MountHandlers() {
+	s.Router.Get("/", logme.Home)
+	s.Router.Post("/log", logme.Create)
+	s.Router.Get("/log/{id:^[a-zA-Z0-9\\-\\.]+}", logme.Read)
 }
