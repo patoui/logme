@@ -1,21 +1,43 @@
 package logme
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	chi "github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
-const storagePath = "log_storage/"
+// TODO: clean up this whole file
+
+type key string
+
+const (
+	accountIdKey key = "accountId"
+	logIdKey     key = "logId"
+)
 
 type createLog struct {
+	AccountId uint32 `json:"account_id"`
 	Name      string `json:"name"`
 	Timestamp string `json:"timestamp"`
 	Content   string `json:"content"`
+}
+
+type Log struct {
+	Uuid      *uuid.UUID `ch:"uuid"`
+	Name      string     `ch:"name"`
+	AccountId uint32     `ch:"account_id"`
+	DateTime  time.Time  `ch:"dt"`
+	Content   string     `ch:"content"`
 }
 
 type createValidationErr struct {
@@ -23,9 +45,62 @@ type createValidationErr struct {
 	Errors  map[string]string `json:"errors"`
 }
 
-func Create(w http.ResponseWriter, r *http.Request) {
-	// TODO: clean up this whole file
+var db driver.Conn
 
+func Routes(r *chi.Mux, dbInstance driver.Conn) {
+	db = dbInstance
+
+	r.Route("/log", func(r chi.Router) {
+		r.Get("/", List)
+		r.Post("/", Create)
+
+		r.Route("/{accountId:[0-9]+}/{logId:[a-zA-Z0-9\\-]+}", func(r chi.Router) {
+			r.Use(LogContext)
+			r.Get("/", Read)
+		})
+	})
+}
+
+func LogContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accountId := chi.URLParam(r, string(accountIdKey))
+		if accountId == "" {
+			http.NotFound(w, r)
+			return
+		}
+		accountIdInt, err := strconv.Atoi(accountId)
+		if err != nil || accountIdInt == 0 {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": err.Error(),
+			})
+		}
+		ctx := context.WithValue(r.Context(), accountIdKey, accountIdInt)
+
+		logId := chi.URLParam(r, string(logIdKey))
+		if logId == "" {
+			http.NotFound(w, r)
+			return
+		}
+
+		logUuid, err := uuid.Parse(logId)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		ctx = context.WithValue(ctx, logIdKey, logUuid)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func List(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Made it to the list!"))
+}
+
+func Create(w http.ResponseWriter, r *http.Request) {
 	var unmarshalErr *json.UnmarshalTypeError
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
@@ -57,15 +132,20 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	var valErr createValidationErr
 
-	if cl.Name == "" || cl.Timestamp == "" || cl.Content == "" {
+	if cl.AccountId == 0 || cl.Name == "" || cl.Timestamp == "" || cl.Content == "" {
 		valErr.Message = "Validation error occurred."
 		valErr.Errors = make(map[string]string)
+	}
+
+	if cl.AccountId == 0 {
+		valErr.Errors["account_id"] = "'account_id' field is required."
 	}
 
 	if cl.Name == "" {
 		valErr.Errors["name"] = "'name' field is required."
 	}
 
+	// TODO: validate timestamp format
 	if cl.Timestamp == "" {
 		valErr.Errors["timestamp"] = "'timestamp' field is required."
 	}
@@ -80,58 +160,28 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, repositoryDirErr := os.Stat(storagePath)
-
-	// check if log storage directory exists
-	if os.IsNotExist(repositoryDirErr) {
-		// create log storage directory
-		if err := os.MkdirAll(storagePath, 0700); err != nil {
-			log.Fatal(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": err.Error(),
-			})
-			return
-		}
-	}
-
-	filename := "log_storage/" + cl.Name
-
-	// check if file exists
-	if !doesFileExist(filename) {
-		// create file
-		_, err := os.Create(filename)
-		if err != nil {
-			log.Fatal(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": err.Error(),
-			})
-			return
-		}
-	}
-
-	// create file
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		log.Fatal(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": err.Error(),
-		})
+	if err := createLogTable(); err != nil {
+		w.Write([]byte(err.Error()))
 		return
 	}
 
-	defer f.Close()
+	// TODO: protect against SQL injection
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 
-	// TODO: insert to clickhouse
-	// write to the file
-	if _, err = f.WriteString(cl.Content + "\n"); err != nil {
-		log.Fatal(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": err.Error(),
-		})
+	err = db.AsyncInsert(
+		ctx,
+		fmt.Sprintf(
+			`INSERT INTO logs (account_id, dt, name, content) VALUES (%d, '%s', '%s', '%s')`,
+			cl.AccountId,
+			cl.Timestamp,
+			cl.Name,
+			cl.Content,
+		),
+		false,
+	)
+	if err != nil {
+		w.Write([]byte(err.Error()))
 		return
 	}
 
@@ -141,20 +191,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func Read(w http.ResponseWriter, r *http.Request) {
-	// TODO: add query param
-	logId := chi.URLParam(r, "id")
+	accountId := r.Context().Value(accountIdKey).(int)
+	logId := r.Context().Value(logIdKey).(uuid.UUID)
 
-	filePath := storagePath + "/" + logId
+	w.Header().Set("Content-Type", "application/json")
 
-	if !doesFileExist(filePath) {
-		http.NotFound(w, r)
-		return
-	}
-
-	// TODO: stream contents
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Fatal(err)
+	if err := db.Ping(context.Background()); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": err.Error(),
@@ -162,11 +204,48 @@ func Read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write(content)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	sql := fmt.Sprintf("SELECT * FROM logs WHERE account_id = %d AND uuid = '%s'", accountId, logId.String())
+
+	var currentLog Log
+	if err := db.QueryRow(ctx, sql).ScanStruct(&currentLog); err != nil {
+		// TODO: update to user friendly error message
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(currentLog)
 }
 
 func doesFileExist(filePath string) bool {
 	_, filePathErr := os.Stat(filePath)
 	return !os.IsNotExist(filePathErr)
+}
+
+// TODO: move to command to run DB migrations
+func createLogTable() error {
+	filePath := "internal/logme/migrations/000001_create_log_table.sql"
+
+	if !doesFileExist(filePath) {
+		return errors.New("migration file does not exists")
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Fatal(err)
+		return errors.New("unable to read file: " + filePath)
+	}
+
+	err = db.Exec(context.Background(), string(content))
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

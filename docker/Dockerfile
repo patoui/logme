@@ -5,6 +5,7 @@ WORKDIR /go/src/github.com/patoui/logme
 
 RUN go mod download
 RUN apk add --no-cache git
+RUN apk add mysql-client
 
 COPY . .
 

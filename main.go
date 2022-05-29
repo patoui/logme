@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
 	"github.com/patoui/logme/internal/logme"
 )
@@ -15,17 +16,23 @@ func main() {
 
 type Server struct {
 	Router *chi.Mux
-	// Db, config can be added here
+	Db     driver.Conn
 }
 
 func CreateNewServer() *Server {
-	s := &Server{}
-	s.Router = chi.NewRouter()
-	return s
+	conn, err := logme.Connection()
+	if err != nil {
+		panic("Unable to connect to the database.")
+	}
+	return &Server{
+		Router: chi.NewRouter(),
+		Db:     conn,
+	}
 }
 
 func (s *Server) MountHandlers() {
+	logme.Routes(s.Router, s.Db)
 	s.Router.Get("/", logme.Home)
-	s.Router.Post("/log", logme.Create)
-	s.Router.Get("/log/{id:^[a-zA-Z0-9\\-\\.]+}", logme.Read)
+	// s.Router.Post("/log", logme.Create(env))
+	// s.Router.Get("/log/{accountId:[0-9]+}/{uuid:[a-zA-Z0-9\\-]+}", logme.Read(env))
 }

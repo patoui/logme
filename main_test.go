@@ -55,10 +55,11 @@ func TestHome(t *testing.T) {
 }
 
 func TestLogCreate(t *testing.T) {
+	t.Skip("Update DB credentials/connection to pull from ENV and use separate database.")
 	s := CreateNewServer()
 	s.MountHandlers()
 
-	br := strings.NewReader(`{"name":"error.log","timestamp":"2022-01-01 01:01:01", "content":"foobar"}`)
+	br := strings.NewReader(`{"name":"error.log","timestamp":"2022-01-01 01:01:01", "content":"foobar", "account_id": 321}`)
 	req, _ := http.NewRequest("POST", "/log", br)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -69,6 +70,7 @@ func TestLogCreate(t *testing.T) {
 }
 
 func TestLogRead(t *testing.T) {
+	t.Skip("Update DB credentials/connection to pull from ENV and use separate database.")
 	s := CreateNewServer()
 	s.MountHandlers()
 
