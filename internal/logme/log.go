@@ -47,7 +47,7 @@ type createValidationErr struct {
 
 var db driver.Conn
 
-func Routes(r *chi.Mux, dbInstance driver.Conn) {
+func RegisterRoutes(r *chi.Mux, dbInstance driver.Conn) {
 	db = dbInstance
 
 	r.Route("/log", func(r chi.Router) {
@@ -97,7 +97,23 @@ func LogContext(next http.Handler) http.Handler {
 
 func List(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Made it to the list!"))
+	rows, err := db.Query(context.Background(), "SELECT * FROM logs")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	var logs []Log
+	for rows.Next() {
+		var currentLog Log
+		if err := rows.ScanStruct(&currentLog); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		logs = append(logs, currentLog)
+	}
+	json.NewEncoder(w).Encode(logs)
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {

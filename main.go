@@ -31,8 +31,6 @@ func CreateNewServer() *Server {
 }
 
 func (s *Server) MountHandlers() {
-	logme.Routes(s.Router, s.Db)
+	logme.RegisterRoutes(s.Router, s.Db)
 	s.Router.Get("/", logme.Home)
-	// s.Router.Post("/log", logme.Create(env))
-	// s.Router.Get("/log/{accountId:[0-9]+}/{uuid:[a-zA-Z0-9\\-]+}", logme.Read(env))
 }
