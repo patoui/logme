@@ -29,17 +29,17 @@ If successful you should be able to visit [http://localhost:8080](http://localho
 #### Add a log entry
 
 ```
-POST /log
+POST /log/{accountId}
 ```
 
 Example requests
 
 ```bash
-curl -X POST -i -H "Content-Type: application/json" http://localhost:8080/log \
-     -d "{\"name\":\"error.log\", \"timestamp\":\"2022-12-31 12:34:56\", \"content\":\"this is a log entry\", \"account_id\":321}"
-HTTP/1.1 200 OK
+curl -X POST -i -H "Content-Type: application/json" http://localhost:8080/log/321 \
+     -d "{\"name\":\"error.log\", \"timestamp\":\"2022-12-31 12:34:56\", \"content\":\"this is another log entry\", \"account_id\":321}"
+HTTP/1.1 201 Created
 Content-Type: application/json
-Date: Mon, 30 May 2022 12:46:29 GMT
+Date: Tue, 31 May 2022 12:14:18 GMT
 Content-Length: 42
 
 {"message":"Log successfully processed."}
@@ -54,19 +54,19 @@ Content-Length: 42
 #### List all logs
 
 ```
-GET /log
+GET /log/{accountId}
 ```
 
 Example request
 
 ```bash
-curl -i -H "Content-Type: application/json" http://localhost:8080/log
+curl -i -H "Content-Type: application/json" http://localhost:8080/log/321
 HTTP/1.1 200 OK
-Date: Mon, 30 May 2022 12:56:25 GMT
-Content-Length: 306
+Date: Tue, 31 May 2022 12:14:54 GMT
+Content-Length: 152
 Content-Type: text/plain; charset=utf-8
 
-[{"Uuid":"a76038ed-3a1f-4529-876a-72960f043b32","Name":"error.log","AccountId":321,"DateTime":"2022-12-31T12:34:56Z","Content":"this is a log entry"}]
+[{"uuid":"365aecd5-6bb5-4061-a941-50e2f99f9eaa","name":"error.log","account_id":321,"dt":"2022-12-31T12:34:56Z","content":"this is another log entry"}]
 ```
 
 ## Running tests 🧪
@@ -76,3 +76,12 @@ To run test, use the following command
 ```bash
 go test
 ```
+
+## TODO
+
+- Add test database
+- Add account routes (create, update, etc.)
+- Add route authentication
+- Add concurrency to request handling
+- Add log search
+- Add meta data tags to enable better searches
