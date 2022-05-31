@@ -8,6 +8,9 @@ import (
 func Connection() (driver.Conn, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"logme_database:9000"},
+		Auth: clickhouse.Auth{
+			Database: "logme",
+		},
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
 		},

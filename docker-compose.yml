@@ -11,6 +11,8 @@ services:
       - "9009:9009"
     networks:
       - app-network
+    volumes:
+      - ./docker/clickhouse/initdb:/docker-entrypoint-initdb.d
 
   server:
     container_name: logme_server
