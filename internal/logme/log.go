@@ -25,19 +25,19 @@ const (
 	logIdKey     key = "logId"
 )
 
+type Log struct {
+	Uuid      *uuid.UUID `ch:"uuid" json:"uuid"`
+	Name      string     `ch:"name" json:"name"`
+	AccountId uint32     `ch:"account_id" json:"account_id"`
+	DateTime  time.Time  `ch:"dt" json:"dt"`
+	Content   string     `ch:"content" json:"content"`
+}
+
 type createLog struct {
 	AccountId uint32 `json:"account_id"`
 	Name      string `json:"name"`
 	Timestamp string `json:"timestamp"`
 	Content   string `json:"content"`
-}
-
-type Log struct {
-	Uuid      *uuid.UUID `ch:"uuid"`
-	Name      string     `ch:"name"`
-	AccountId uint32     `ch:"account_id"`
-	DateTime  time.Time  `ch:"dt"`
-	Content   string     `ch:"content"`
 }
 
 type createValidationErr struct {
@@ -50,24 +50,25 @@ var db driver.Conn
 func RegisterRoutes(r *chi.Mux, dbInstance driver.Conn) {
 	db = dbInstance
 
-	r.Route("/log", func(r chi.Router) {
+	r.Route("/log/{accountId:[0-9]+}", func(r chi.Router) {
+		r.Use(AccountContext)
 		r.Get("/", List)
 		r.Post("/", Create)
-
-		r.Route("/{accountId:[0-9]+}/{logId:[a-zA-Z0-9\\-]+}", func(r chi.Router) {
+		r.Route("/{logId:[a-zA-Z0-9\\-]+}", func(r chi.Router) {
 			r.Use(LogContext)
 			r.Get("/", Read)
 		})
 	})
 }
 
-func LogContext(next http.Handler) http.Handler {
+func AccountContext(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		accountId := chi.URLParam(r, string(accountIdKey))
 		if accountId == "" {
 			http.NotFound(w, r)
 			return
 		}
+
 		accountIdInt, err := strconv.Atoi(accountId)
 		if err != nil || accountIdInt == 0 {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -75,8 +76,15 @@ func LogContext(next http.Handler) http.Handler {
 				"message": err.Error(),
 			})
 		}
+
 		ctx := context.WithValue(r.Context(), accountIdKey, accountIdInt)
 
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func LogContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logId := chi.URLParam(r, string(logIdKey))
 		if logId == "" {
 			http.NotFound(w, r)
@@ -89,7 +97,7 @@ func LogContext(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx = context.WithValue(ctx, logIdKey, logUuid)
+		ctx := context.WithValue(r.Context(), logIdKey, logUuid)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -117,6 +125,7 @@ func List(w http.ResponseWriter, r *http.Request) {
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
+	accountId := r.Context().Value(accountIdKey).(int)
 	var unmarshalErr *json.UnmarshalTypeError
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
@@ -148,13 +157,9 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	var valErr createValidationErr
 
-	if cl.AccountId == 0 || cl.Name == "" || cl.Timestamp == "" || cl.Content == "" {
+	if cl.Name == "" || cl.Timestamp == "" || cl.Content == "" {
 		valErr.Message = "Validation error occurred."
 		valErr.Errors = make(map[string]string)
-	}
-
-	if cl.AccountId == 0 {
-		valErr.Errors["account_id"] = "'account_id' field is required."
 	}
 
 	if cl.Name == "" {
@@ -189,7 +194,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		fmt.Sprintf(
 			`INSERT INTO logs (account_id, dt, name, content) VALUES (%d, '%s', '%s', '%s')`,
-			cl.AccountId,
+			accountId,
 			cl.Timestamp,
 			cl.Name,
 			cl.Content,
@@ -201,6 +206,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Log successfully processed.",
 	})
