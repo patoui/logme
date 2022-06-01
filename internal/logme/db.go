@@ -19,6 +19,12 @@ func Connection() (driver.Conn, error) {
 		dbName = "logme"
 	}
 
+	dbDebug := os.Getenv("DB_DEBUG")
+	isDebug := false
+	if dbDebug == "true" {
+		isDebug = true
+	}
+
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{addr},
 		Auth: clickhouse.Auth{
@@ -30,7 +36,7 @@ func Connection() (driver.Conn, error) {
 		Settings: clickhouse.Settings{
 			"max_execution_time": 60,
 		},
-		Debug: true,
+		Debug: isDebug,
 	})
 
 	// Failed to connect

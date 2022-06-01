@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +34,7 @@ func checkResponseCode(t *testing.T, expected, actual int) {
 // "Content-Type" of the response
 func checkResponseContentType(t *testing.T, expected string, actual string) {
 	if expected != actual {
-		t.Errorf("Expected response code %s. Got %s\n", expected, actual)
+		t.Errorf("Expected content-type %s. Got %s\n", expected, actual)
 	}
 }
 
@@ -56,7 +58,7 @@ func TestHome(t *testing.T) {
 }
 
 func TestLogCreate(t *testing.T) {
-	t.Skip("Update DB credentials/connection to pull from ENV and use separate database.")
+	LoadEnv()
 	os.Setenv("DB_NAME", "logme_test")
 	s := CreateNewServer()
 	s.MountHandlers()
@@ -67,12 +69,12 @@ func TestLogCreate(t *testing.T) {
 
 	response := executeRequest(req, s)
 
-	checkResponseCode(t, http.StatusOK, response.Code)
+	checkResponseCode(t, http.StatusCreated, response.Code)
 	require.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
 }
 
-func TestLogRead(t *testing.T) {
-	t.Skip("Update DB credentials/connection to pull from ENV and use separate database.")
+func TestLogList(t *testing.T) {
+	LoadEnv()
 	os.Setenv("DB_NAME", "logme_test")
 	s := CreateNewServer()
 	s.MountHandlers()
@@ -83,7 +85,7 @@ func TestLogRead(t *testing.T) {
 
 	response := executeRequest(req, s)
 
-	checkResponseCode(t, http.StatusOK, response.Code)
+	checkResponseCode(t, http.StatusCreated, response.Code)
 	require.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
 
 	gReq, _ := http.NewRequest("GET", "/log/321", nil)
@@ -91,7 +93,17 @@ func TestLogRead(t *testing.T) {
 	gResponse := executeRequest(gReq, s)
 
 	checkResponseCode(t, http.StatusOK, gResponse.Code)
-	checkResponseContentType(t, gResponse.Result().Header.Get("Content-Type"), "text/plain")
-	// verify last entry is what we previously added
-	require.True(t, strings.HasSuffix(gResponse.Body.String(), "foobar\n"))
+	checkResponseContentType(t, "application/json", gResponse.Header().Get("Content-Type"))
+	type log struct {
+		Uuid      *uuid.UUID `json:"uuid"`
+		Name      string     `json:"name"`
+		AccountId uint32     `json:"account_id"`
+		DateTime  string     `json:"dt"`
+		Content   string     `json:"content"`
+	}
+	var logs []log
+	json.NewDecoder(gResponse.Body).Decode(&logs)
+	lastLog := logs[len(logs)-1]
+	require.EqualValues(t, "foobar", lastLog.Content)
+	require.EqualValues(t, 321, lastLog.AccountId)
 }

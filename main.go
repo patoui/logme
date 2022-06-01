@@ -11,10 +11,7 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	LoadEnv()
 	s := CreateNewServer()
 	s.MountHandlers()
 	http.ListenAndServe(":8080", s.Router)
@@ -23,6 +20,13 @@ func main() {
 type Server struct {
 	Router *chi.Mux
 	Db     driver.Conn
+}
+
+func LoadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 }
 
 func CreateNewServer() *Server {

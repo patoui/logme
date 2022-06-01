@@ -95,7 +95,7 @@ make test
 
 ## TODO
 
-- Add test database
+- Add test database clean up
 - Add account routes (create, update, etc.)
 - Add route authentication
 - Add concurrency to request handling
