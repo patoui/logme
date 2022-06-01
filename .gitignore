@@ -2,5 +2,4 @@
 .idea
 go.sum
 build/*
-log_storage
 .vscode

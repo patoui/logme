@@ -1,15 +1,28 @@
 package logme
 
 import (
+	"errors"
+	"os"
+
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
 func Connection() (driver.Conn, error) {
+	addr := os.Getenv("DB_ADDR")
+	if addr == "" {
+		return nil, errors.New("environment variable DB_ADDR required for migrations")
+	}
+
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "logme"
+	}
+
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"logme_database:9000"},
+		Addr: []string{addr},
 		Auth: clickhouse.Auth{
-			Database: "logme",
+			Database: dbName,
 		},
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,

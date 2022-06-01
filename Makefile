@@ -24,3 +24,6 @@ server:
 
 database:
 	docker exec -it -uroot logme_database /usr/bin/clickhouse --client
+
+test:
+	docker exec -it logme_server /bin/sh -c "go test"

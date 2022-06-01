@@ -4,8 +4,9 @@ COPY go.mod go.sum /go/src/github.com/patoui/logme/
 WORKDIR /go/src/github.com/patoui/logme
 
 RUN go mod download
-RUN apk add --no-cache git
-RUN apk add mysql-client
+RUN apk add git
+RUN apk add gcc
+RUN apk add libc-dev
 
 COPY . .
 

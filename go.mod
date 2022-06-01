@@ -12,6 +12,7 @@ require (
 	github.com/davecgh/go-spew v1.1.0 // indirect
 	github.com/go-chi/chi v1.5.4
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/joho/godotenv v1.4.0
 	github.com/paulmach/orb v0.7.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

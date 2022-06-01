@@ -9,7 +9,9 @@ Application to receive log entries and to make them queryable
 
 ## Running the Application 🚀
 
-Create 2 empty files `.env` and `go.sum`
+Create an empty file named `go.sum`
+
+Copy the `.env.docker` to `.env`
 
 Now run the following to bring up the application
 
@@ -21,6 +23,20 @@ If successful you should be able to visit [http://localhost:8080](http://localho
 
 ```json
 {"message":"Welcome to LogMe!"}
+```
+
+### Migrating the Databases
+
+Use the built-in tool to migrate the database!
+
+```bash
+./logme-cli m
+```
+
+And migrate the test database 🐞
+
+```bash
+./logme-cli mt
 ```
 
 ### Currently Available Functionality
@@ -74,7 +90,7 @@ Content-Type: text/plain; charset=utf-8
 To run test, use the following command
 
 ```bash
-go test
+make test
 ```
 
 ## TODO

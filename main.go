@@ -1,14 +1,20 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
+	"github.com/joho/godotenv"
 	"github.com/patoui/logme/internal/logme"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	s := CreateNewServer()
 	s.MountHandlers()
 	http.ListenAndServe(":8080", s.Router)

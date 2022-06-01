@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -56,11 +57,12 @@ func TestHome(t *testing.T) {
 
 func TestLogCreate(t *testing.T) {
 	t.Skip("Update DB credentials/connection to pull from ENV and use separate database.")
+	os.Setenv("DB_NAME", "logme_test")
 	s := CreateNewServer()
 	s.MountHandlers()
 
 	br := strings.NewReader(`{"name":"error.log","timestamp":"2022-01-01 01:01:01", "content":"foobar", "account_id": 321}`)
-	req, _ := http.NewRequest("POST", "/log", br)
+	req, _ := http.NewRequest("POST", "/log/321", br)
 	req.Header.Add("Content-Type", "application/json")
 
 	response := executeRequest(req, s)
@@ -71,11 +73,12 @@ func TestLogCreate(t *testing.T) {
 
 func TestLogRead(t *testing.T) {
 	t.Skip("Update DB credentials/connection to pull from ENV and use separate database.")
+	os.Setenv("DB_NAME", "logme_test")
 	s := CreateNewServer()
 	s.MountHandlers()
 
 	br := strings.NewReader(`{"name":"error.log","timestamp":"2022-01-01 01:01:01", "content":"foobar"}`)
-	req, _ := http.NewRequest("POST", "/log", br)
+	req, _ := http.NewRequest("POST", "/log/321", br)
 	req.Header.Add("Content-Type", "application/json")
 
 	response := executeRequest(req, s)
@@ -83,7 +86,7 @@ func TestLogRead(t *testing.T) {
 	checkResponseCode(t, http.StatusOK, response.Code)
 	require.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
 
-	gReq, _ := http.NewRequest("GET", "/log/error.log", nil)
+	gReq, _ := http.NewRequest("GET", "/log/321", nil)
 
 	gResponse := executeRequest(gReq, s)
 
