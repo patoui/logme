@@ -8,10 +8,9 @@ require (
 )
 
 require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.0.14 // indirect
+	github.com/ClickHouse/clickhouse-go/v2 v2.0.14
 	github.com/davecgh/go-spew v1.1.0 // indirect
-	github.com/go-chi/chi v1.5.4
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.4.0
 	github.com/paulmach/orb v0.7.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
