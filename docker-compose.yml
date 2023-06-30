@@ -14,6 +14,18 @@ services:
     volumes:
       - ./docker/clickhouse/initdb:/docker-entrypoint-initdb.d
 
+  
+  meilisearch:
+    container_name: logme_meilisearch
+    image: getmeili/meilisearch:latest
+    networks:
+      - app-network
+    ports:
+      - "7700"
+    environment:
+      - MEILI_MASTER_KEY=masterKey
+      - MEILI_NO_ANALYTICS=true
+
   server:
     container_name: logme_server
     build:
@@ -21,7 +33,10 @@ services:
       dockerfile: ./docker/Dockerfile
     env_file: .env
     depends_on:
+      - meilisearch
       - database
+    links:
+      - meilisearch
     networks:
       - app-network
     ports:

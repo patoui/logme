@@ -4,9 +4,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/patoui/logme/internal/logme"
 )
 
@@ -19,7 +19,7 @@ func main() {
 
 type Server struct {
 	Router *chi.Mux
-	Db     driver.Conn
+	Db     *meilisearch.Client
 }
 
 func LoadEnv() {
@@ -32,8 +32,9 @@ func LoadEnv() {
 func CreateNewServer() *Server {
 	conn, err := logme.Connection()
 	if err != nil {
-		panic("Unable to connect to the database.")
+		panic(err)
 	}
+
 	return &Server{
 		Router: chi.NewRouter(),
 		Db:     conn,

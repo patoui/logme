@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"text/template/parse"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/meilisearch/meilisearch-go"
 )
 
 // TODO: clean up this whole file
@@ -26,11 +26,11 @@ const (
 )
 
 type Log struct {
-	Uuid      *uuid.UUID `ch:"uuid" json:"uuid"`
-	Name      string     `ch:"name" json:"name"`
-	AccountId uint32     `ch:"account_id" json:"account_id"`
-	DateTime  time.Time  `ch:"dt" json:"dt"`
-	Content   string     `ch:"content" json:"content"`
+	Uuid      *uuid.UUID `json:"uuid"`
+	Name      string     `json:"name"`
+	AccountId uint32     `json:"account_id"`
+	DateTime  time.Time  `json:"dt"`
+	Content   string     `json:"content"`
 }
 
 type createLog struct {
@@ -45,19 +45,19 @@ type createValidationErr struct {
 	Errors  map[string]string `json:"errors"`
 }
 
-var db driver.Conn
+var db *meilisearch.Client
 
-func RegisterRoutes(r *chi.Mux, dbInstance driver.Conn) {
+func RegisterRoutes(r *chi.Mux, dbInstance *meilisearch.Client) {
 	db = dbInstance
 
 	r.Route("/log/{accountId:[0-9]+}", func(r chi.Router) {
 		r.Use(AccountContext)
 		r.Get("/", List)
 		r.Post("/", Create)
-		r.Route("/{logId:[a-zA-Z0-9\\-]+}", func(r chi.Router) {
-			r.Use(LogContext)
-			r.Get("/", Read)
-		})
+		// r.Route("/{logId:[a-zA-Z0-9\\-]+}", func(r chi.Router) {
+		// 	r.Use(LogContext)
+		// 	r.Get("/", Read)
+		// })
 	})
 }
 
@@ -105,24 +105,59 @@ func LogContext(next http.Handler) http.Handler {
 
 func List(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	rows, err := db.Query(context.Background(), "SELECT * FROM logs")
+	q := r.URL.Query().Get("q")
+	index := db.Index("logs")
+
+	_, err := index.UpdateFilterableAttributes(&[]string{"account_id"})
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	}
+
+	accountId := r.Context().Value(accountIdKey).(int)
+
+	resp, err := index.Search(q, &meilisearch.SearchRequest{
+        Filter: fmt.Sprintf("account_id = %d", accountId),
+    })
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	// firstHit := resp.Hits[0].(map[string]interface{})
+	// firstContent := firstHit["content"].(string)
+	// fmt.Printf("RESP HITS: %v | %T | %s\n", firstHit, firstHit, firstContent)
 	var logs []Log
-	for rows.Next() {
-		var currentLog Log
-		if err := rows.ScanStruct(&currentLog); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+	// var hit map[string]interface{}
+	// for _, v := range resp.Hits {
+	// 	var log Log
+		// hit := v.(map[string]interface{})
+		// uuid := hit["uuid"].(string)
+		// content := hit["content"].(string)
+		// name := hit["name"].(string)
+		// accountId := hit["account_id"].(string)
+		// timestamp := hit["timestamp"].(string)
+		// parsedHit := map[string]string{
+		// 	"account_id": accountId,
+		// 	"content": content,
+		// 	"name": name,
+		// 	"uuid": uuid,
+		// 	"timestamp": timestamp,
+		// }
+		errtwo := json.Unmarshal([]byte(resp), &logs)
+		if errtwo != nil {
+			fmt.Println("Error unmarshaling JSON:", errtwo)
 			return
 		}
-		logs = append(logs, currentLog)
-	}
+	// 	fmt.Printf("UNMARSHALED: %v\n", log)
+	// 	// logs = append(logs, pv)
+	// }
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
@@ -182,30 +217,25 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := createLogTable(); err != nil {
-		w.Write([]byte(err.Error()))
-		return
+	index := db.Index("logs")
+
+    id := uuid.New()
+    documents := []map[string]interface{}{
+    	{
+			"uuid": id.String(),
+			"account_id": accountId,
+			"name": cl.Name,
+			"timestamp": cl.Timestamp,
+			"content": cl.Content,
+		},
 	}
-
-	// TODO: protect against SQL injection
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	err = db.AsyncInsert(
-		ctx,
-		fmt.Sprintf(
-			`INSERT INTO logs (account_id, dt, name, content) VALUES (%d, '%s', '%s', '%s')`,
-			accountId,
-			cl.Timestamp,
-			cl.Name,
-			cl.Content,
-		),
-		false,
-	)
+	task, err := index.AddDocuments(documents, "uuid")
 	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
+		fmt.Println(err)
+		os.Exit(1)
 	}
+
+	fmt.Println(task.TaskUID)
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -213,62 +243,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func Read(w http.ResponseWriter, r *http.Request) {
-	accountId := r.Context().Value(accountIdKey).(int)
-	logId := r.Context().Value(logIdKey).(uuid.UUID)
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := db.Ping(context.Background()); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": err.Error(),
-		})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	sql := fmt.Sprintf("SELECT * FROM logs WHERE account_id = %d AND uuid = '%s'", accountId, logId.String())
-
-	var currentLog Log
-	if err := db.QueryRow(ctx, sql).ScanStruct(&currentLog); err != nil {
-		// TODO: update to user friendly error message
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": err.Error(),
-		})
-		return
-	}
-
-	json.NewEncoder(w).Encode(currentLog)
-}
-
 func doesFileExist(filePath string) bool {
 	_, filePathErr := os.Stat(filePath)
 	return !os.IsNotExist(filePathErr)
-}
-
-// TODO: move to command to run DB migrations
-func createLogTable() error {
-	filePath := "internal/logme/migrations/000001_create_log_table.sql"
-
-	if !doesFileExist(filePath) {
-		return errors.New("migration file does not exists")
-	}
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Fatal(err)
-		return errors.New("unable to read file: " + filePath)
-	}
-
-	err = db.Exec(context.Background(), string(content))
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

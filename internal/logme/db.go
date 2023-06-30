@@ -4,45 +4,24 @@ import (
 	"errors"
 	"os"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/meilisearch/meilisearch-go"
 )
 
-func Connection() (driver.Conn, error) {
-	addr := os.Getenv("DB_ADDR")
-	if addr == "" {
-		return nil, errors.New("environment variable DB_ADDR required for migrations")
+func Connection() (*meilisearch.Client, error) {
+	host := os.Getenv("MEILISEARCH_HOST")
+	if host == "" {
+		return &meilisearch.Client{}, errors.New("environment variable MEILISEARCH_HOST required for connection")
 	}
 
-	dbName := os.Getenv("DB_NAME")
-	if dbName == "" {
-		dbName = "logme"
+	apiKey := os.Getenv("MEILISEARCH_API_KEY")
+	if apiKey == "" {
+		return &meilisearch.Client{}, errors.New("environment variable MEILISEARCH_API_KEY required for connection")
 	}
 
-	dbDebug := os.Getenv("DB_DEBUG")
-	isDebug := false
-	if dbDebug == "true" {
-		isDebug = true
-	}
+	client := meilisearch.NewClient(meilisearch.ClientConfig{
+		Host: host,
+        APIKey: apiKey,
+    })
 
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{addr},
-		Auth: clickhouse.Auth{
-			Database: dbName,
-		},
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
-		Settings: clickhouse.Settings{
-			"max_execution_time": 60,
-		},
-		Debug: isDebug,
-	})
-
-	// Failed to connect
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
+	return client, nil
 }
