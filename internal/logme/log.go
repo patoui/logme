@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"text/template/parse"
 	"time"
 
 	chi "github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/meilisearch/meilisearch-go"
+	"github.com/mitchellh/mapstructure"
 )
 
 // TODO: clean up this whole file
@@ -26,11 +26,19 @@ const (
 )
 
 type Log struct {
-	Uuid      *uuid.UUID `json:"uuid"`
-	Name      string     `json:"name"`
-	AccountId uint32     `json:"account_id"`
-	DateTime  time.Time  `json:"dt"`
-	Content   string     `json:"content"`
+	Uuid      *uuid.UUID `mapstructure:"uuid" json:"uuid"`
+	Name      string     `mapstructure:"name" json:"name"`
+	AccountId uint32     `mapstructure:"account_id" json:"account_id"`
+	DateTime  time.Time  `mapstructure:"dt" json:"dt"`
+	Content   string     `mapstructure:"content" json:"content"`
+}
+
+type OutputLog struct {
+	Uuid      string `mapstructure:"uuid" json:"uuid"`
+	Name      string `mapstructure:"name" json:"name"`
+	AccountId uint32 `mapstructure:"account_id" json:"account_id"`
+	DateTime  string `mapstructure:"timestamp" json:"timestamp"`
+	Content   string `mapstructure:"content" json:"content"`
 }
 
 type createLog struct {
@@ -128,36 +136,15 @@ func List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// firstHit := resp.Hits[0].(map[string]interface{})
-	// firstContent := firstHit["content"].(string)
-	// fmt.Printf("RESP HITS: %v | %T | %s\n", firstHit, firstHit, firstContent)
-	var logs []Log
-	// var hit map[string]interface{}
-	// for _, v := range resp.Hits {
-	// 	var log Log
-		// hit := v.(map[string]interface{})
-		// uuid := hit["uuid"].(string)
-		// content := hit["content"].(string)
-		// name := hit["name"].(string)
-		// accountId := hit["account_id"].(string)
-		// timestamp := hit["timestamp"].(string)
-		// parsedHit := map[string]string{
-		// 	"account_id": accountId,
-		// 	"content": content,
-		// 	"name": name,
-		// 	"uuid": uuid,
-		// 	"timestamp": timestamp,
-		// }
-		errtwo := json.Unmarshal([]byte(resp), &logs)
-		if errtwo != nil {
-			fmt.Println("Error unmarshaling JSON:", errtwo)
-			return
-		}
-	// 	fmt.Printf("UNMARSHALED: %v\n", log)
-	// 	// logs = append(logs, pv)
-	// }
+	var logs []OutputLog
+	errtwo := mapstructure.Decode(resp.Hits, &logs)
+	if errtwo != nil {
+		fmt.Println("Error decoding map to log struct:", errtwo)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(logs)
 }
 
 func Create(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +216,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			"content": cl.Content,
 		},
 	}
+
 	task, err := index.AddDocuments(documents, "uuid")
 	if err != nil {
 		fmt.Println(err)
