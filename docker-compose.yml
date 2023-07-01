@@ -1,18 +1,17 @@
 version: "3.7"
 
 services:
-
-  database:
-    container_name: logme_database
-    image: yandex/clickhouse-server
-    ports:
-      - "8123:8123"
-      - "9000:9000"
-      - "9009:9009"
+  
+  meilisearch:
+    container_name: logme_meilisearch
+    image: getmeili/meilisearch:latest
     networks:
       - app-network
-    volumes:
-      - ./docker/clickhouse/initdb:/docker-entrypoint-initdb.d
+    ports:
+      - "7700"
+    environment:
+      - MEILI_MASTER_KEY=masterKey
+      - MEILI_NO_ANALYTICS=true
 
   server:
     container_name: logme_server
@@ -21,7 +20,9 @@ services:
       dockerfile: ./docker/Dockerfile
     env_file: .env
     depends_on:
-      - database
+      - meilisearch
+    links:
+      - meilisearch
     networks:
       - app-network
     ports:

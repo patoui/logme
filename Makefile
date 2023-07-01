@@ -1,18 +1,23 @@
 help:
 	    @echo ""
-	    @echo "Makefile commands:"
+	    @echo "Available commands:"
 	    @echo ""
 	    @echo "DOCKER"
 	    @echo ""
+	    @echo "list            - List the docker containers                      - ex: make list"
 	    @echo "start           - Start the docker containers                     - ex: make start"
 	    @echo "stop            - Stop the docker containers                      - ex: make stop"
 	    @echo ""
 	    @echo "CLIs"
 	    @echo ""
 	    @echo "server          - Access go container                             - ex: make server"
-	    @echo "database        - Access clickhouse client                        - ex: make database"
 	    @echo "test            - Run tests                                       - ex: make test"
+	    @echo "clear_index     - Clear the 'log' index                           - ex: make clear_index"
+	    @echo "tail            - Tail the app logs                               - ex: make tail"
 	    @echo ""
+
+list:
+	docker-compose -f docker-compose.yml ps
 
 start:
 	docker-compose -f docker-compose.yml up -d
@@ -23,8 +28,16 @@ stop:
 server:
 	docker exec -it logme_server /bin/sh
 
-database:
-	docker exec -it -uroot logme_database /usr/bin/clickhouse --client -d logme
-
 test:
 	docker exec -it logme_server /bin/sh -c "go test"
+
+clear_index:
+	$(eval ID := $(shell docker ps --filter "name=logme_meilisearch" -q))
+	$(eval MEILISEARCH_PORT := $(shell docker port ${ID} | sed 's/.*://' | head -n 1))
+	@curl -s \
+		-X DELETE "http://localhost:$(MEILISEARCH_PORT)/indexes/logs" \
+		-H 'Authorization: Bearer masterKey' > /dev/null
+
+tail:
+	$(eval ID := $(shell docker ps --filter "name=logme_server" -q))
+	docker logs -f ${ID}
