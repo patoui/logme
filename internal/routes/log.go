@@ -3,7 +3,6 @@ package routes
 import (
     "context"
     "encoding/json"
-    "fmt"
     syslog "log"
     "net/http"
     "strconv"
@@ -58,30 +57,11 @@ func AccountContext(next http.Handler) http.Handler {
 
 func List(w http.ResponseWriter, r *http.Request) {
     q := r.URL.Query().Get("q")
-    index := dbInstance.Index("logs")
-
-    _, err := index.UpdateFilterableAttributes(&[]string{"account_id"})
-
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        w.Write([]byte(err.Error()))
-        return
-    }
-
     accountId := r.Context().Value(accountIdKey).(int)
 
-    resp, searchErr := index.Search(q, &meilisearch.SearchRequest{
-        Filter: fmt.Sprintf("account_id = %d", accountId),
-    })
-
-    if searchErr != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        w.Write([]byte(searchErr.Error()))
-        return
-    }
-
-    logs, mapErr := models.DecodeLogs(resp.Hits)
+    logs, mapErr := models.List(dbInstance, accountId, q)
     if mapErr != nil {
+        w.WriteHeader(http.StatusInternalServerError)
         w.Header().Set("Content-Type", "application/json")
         json.NewEncoder(w).Encode(mapErr)
         return

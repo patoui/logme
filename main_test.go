@@ -4,13 +4,24 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/patoui/logme/internal/models"
 )
+
+func setupTest() *Server {
+	primaryIndex := "logs_test"
+	s := Setup(map[string]string{
+		"PRIMARY_INDEX": primaryIndex,
+	})
+	s.Db.DeleteIndex(primaryIndex)
+	s.Db.Index(primaryIndex)
+	return s
+}
 
 // executeRequest, creates a new ResponseRecorder
 // then executes the request by calling ServeHTTP in the router
@@ -39,10 +50,7 @@ func checkResponseContentType(t *testing.T, expected string, actual string) {
 }
 
 func TestHome(t *testing.T) {
-	// Create a New Server Struct
-	s := CreateNewServer()
-	// Mount Handlers
-	s.MountHandlers()
+	s := setupTest()
 
 	// Create a New Request
 	req, _ := http.NewRequest("GET", "/", nil)
@@ -58,12 +66,9 @@ func TestHome(t *testing.T) {
 }
 
 func TestLogCreate(t *testing.T) {
-	LoadEnv()
-	os.Setenv("DB_NAME", "logme_test")
-	s := CreateNewServer()
-	s.MountHandlers()
+	s := setupTest()
 
-	br := strings.NewReader(`{"name":"error.log","timestamp":"2022-01-01 01:01:01", "content":"foobar", "account_id": 321}`)
+	br := strings.NewReader(`{"name":"error.log", "timestamp":"2022-12-31 12:36:58", "content":"this is a log entry", "account_id":321}`)
 	req, _ := http.NewRequest("POST", "/log/321", br)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -74,12 +79,9 @@ func TestLogCreate(t *testing.T) {
 }
 
 func TestLogList(t *testing.T) {
-	LoadEnv()
-	os.Setenv("DB_NAME", "logme_test")
-	s := CreateNewServer()
-	s.MountHandlers()
+	s := setupTest()
 
-	br := strings.NewReader(`{"name":"error.log","timestamp":"2022-01-01 01:01:01", "content":"foobar"}`)
+	br := strings.NewReader(`{"name":"error.log", "timestamp":"2022-12-31 12:36:58", "content":"this is a log entry", "account_id":321}`)
 	req, _ := http.NewRequest("POST", "/log/321", br)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -88,22 +90,20 @@ func TestLogList(t *testing.T) {
 	checkResponseCode(t, http.StatusCreated, response.Code)
 	require.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
 
+	// TODO: find better approach
+	// sleep to wait for document addition to occur
+	time.Sleep(500 * time.Millisecond)
+
 	gReq, _ := http.NewRequest("GET", "/log/321", nil)
 
 	gResponse := executeRequest(gReq, s)
 
 	checkResponseCode(t, http.StatusOK, gResponse.Code)
 	checkResponseContentType(t, "application/json", gResponse.Header().Get("Content-Type"))
-	type log struct {
-		Uuid      *uuid.UUID `json:"uuid"`
-		Name      string     `json:"name"`
-		AccountId uint32     `json:"account_id"`
-		DateTime  string     `json:"dt"`
-		Content   string     `json:"content"`
-	}
-	var logs []log
+	var logs []models.Log
 	json.NewDecoder(gResponse.Body).Decode(&logs)
+	require.EqualValues(t, 1, len(logs))
 	lastLog := logs[len(logs)-1]
-	require.EqualValues(t, "foobar", lastLog.Content)
+	require.EqualValues(t, "this is a log entry", lastLog.Content)
 	require.EqualValues(t, 321, lastLog.AccountId)
 }

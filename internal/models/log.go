@@ -1,6 +1,8 @@
 package models
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 	"time"
 
@@ -29,8 +31,11 @@ type CreateLog struct {
 	Content   string     `json:"content"`
 }
 
-func (log *CreateLog) Create (db *meilisearch.Client) (error) {
-    index := db.Index("logs")
+func (log *CreateLog) Create(db *meilisearch.Client) (error) {
+    index, err := index(db)
+    if err != nil {
+    	return err
+    }
 
     id := uuid.New()
     documents := []map[string]interface{}{
@@ -48,7 +53,41 @@ func (log *CreateLog) Create (db *meilisearch.Client) (error) {
     return docErr
 }
 
-func DecodeLogs(input interface{}) ([]Log, error) {
+func List(db *meilisearch.Client, accountId int, query string) ([]Log, error) {
+    index, err := index(db)
+    if err != nil {
+    	return nil, err
+    }
+
+    resp, searchErr := index.Search(query, &meilisearch.SearchRequest{
+        Filter: fmt.Sprintf("account_id = %d", accountId),
+    })
+
+    if searchErr != nil {
+        return nil, searchErr
+    }
+
+    logs, mapErr := decodeLogs(resp.Hits)
+    if mapErr != nil {
+        return nil, mapErr
+    }
+
+    return logs, nil
+}
+
+func index(db *meilisearch.Client) (*meilisearch.Index, error) {
+	indexName := os.Getenv("PRIMARY_INDEX")
+    index := db.Index(indexName)
+
+    _, err := index.UpdateFilterableAttributes(&[]string{"account_id"})
+    if err != nil {
+        return nil, err
+    }
+
+    return index, nil
+}
+
+func decodeLogs(input interface{}) ([]Log, error) {
     var logs []Log
 
 	config := &mapstructure.DecoderConfig{
