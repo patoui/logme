@@ -48,25 +48,26 @@ type CustomTime struct {
 }
 
 func (ct *CustomTime) UnmarshalJSON(b []byte) (err error) {
-    s := strings.Trim(string(b), "\"")
-    if s == "null" {
-       ct.Time = time.Time{}
-       return
-    }
-    ct.Time, err = time.Parse(layout, s)
-    return
+	s := strings.Trim(string(b), "\"")
+	if s == "null" {
+		ct.Time = time.Time{}
+		return
+	}
+	ct.Time, err = time.Parse(layout, s)
+	return
 }
 
 func (ct *CustomTime) MarshalJSON() ([]byte, error) {
-  if ct.Time.UnixNano() == nilTime {
-    return []byte("null"), nil
-  }
-  return []byte(fmt.Sprintf("\"%s\"", ct.Time.Format(layout))), nil
+	if ct.Time.UnixNano() == nilTime {
+		return []byte("null"), nil
+	}
+	return []byte(fmt.Sprintf("\"%s\"", ct.Time.Format(layout))), nil
 }
 
 var nilTime = (time.Time{}).UnixNano()
+
 func (ct *CustomTime) IsSet() bool {
-    return ct.UnixNano() != nilTime
+	return ct.UnixNano() != nilTime
 }
 
 func decode(input, output interface{}) error {
@@ -162,8 +163,8 @@ func List(w http.ResponseWriter, r *http.Request) {
 	accountId := r.Context().Value(accountIdKey).(int)
 
 	resp, err := index.Search(q, &meilisearch.SearchRequest{
-        Filter: fmt.Sprintf("account_id = %d", accountId),
-    })
+		Filter: fmt.Sprintf("account_id = %d", accountId),
+	})
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -203,7 +204,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	var valErr createValidationErr
 
-	if cl.Name == "" || ! cl.Timestamp.IsSet() || cl.Content == "" {
+	if cl.Name == "" || !cl.Timestamp.IsSet() || cl.Content == "" {
 		valErr.Message = "Validation error occurred."
 		valErr.Errors = make(map[string]string)
 	}
@@ -212,7 +213,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		valErr.Errors["name"] = "'name' field is required."
 	}
 
-	if ! cl.Timestamp.IsSet() {
+	if !cl.Timestamp.IsSet() {
 		valErr.Errors["timestamp"] = "'timestamp' field is required."
 	}
 
@@ -228,14 +229,14 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	index := db.Index("logs")
 
-    id := uuid.New()
-    documents := []map[string]interface{}{
-    	{
-			"uuid": id.String(),
+	id := uuid.New()
+	documents := []map[string]interface{}{
+		{
+			"uuid":       id.String(),
 			"account_id": accountId,
-			"name": cl.Name,
-			"timestamp": cl.Timestamp,
-			"content": cl.Content,
+			"name":       cl.Name,
+			"timestamp":  cl.Timestamp,
+			"content":    cl.Content,
 		},
 	}
 
