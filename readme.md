@@ -25,20 +25,6 @@ If successful you should be able to visit [http://localhost:8080](http://localho
 {"message":"Welcome to LogMe!"}
 ```
 
-### Migrating the Databases
-
-Use the built-in tool to migrate the database!
-
-```bash
-./logme-cli m
-```
-
-And migrate the test database 🐞
-
-```bash
-./logme-cli mt
-```
-
 ### Currently Available Functionality
 
 
