@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	chi "github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -14,7 +15,13 @@ func main() {
 	LoadEnv()
 	s := CreateNewServer()
 	s.MountHandlers()
-	http.ListenAndServe(":8080", s.Router)
+
+	port := os.Getenv("APP_PORT")
+	if len(port) == 0 {
+		port = "8080"
+	}
+
+	http.ListenAndServe(":"+port, s.Router)
 }
 
 type Server struct {

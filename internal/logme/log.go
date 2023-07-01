@@ -3,11 +3,12 @@ package logme
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	syslog "log"
 	"net/http"
-	"os"
+	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	chi "github.com/go-chi/chi/v5"
@@ -16,36 +17,24 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// TODO: clean up this whole file
+var db *meilisearch.Client
 
-type key string
-
-const (
-	accountIdKey key = "accountId"
-	logIdKey     key = "logId"
-)
+const accountIdKey = "accountId"
+const layout = "2006-01-02 15:04:05"
 
 type Log struct {
 	Uuid      *uuid.UUID `mapstructure:"uuid" json:"uuid"`
 	Name      string     `mapstructure:"name" json:"name"`
 	AccountId uint32     `mapstructure:"account_id" json:"account_id"`
-	DateTime  time.Time  `mapstructure:"dt" json:"dt"`
+	DateTime  CustomTime `mapstructure:"timestamp" json:"timestamp"`
 	Content   string     `mapstructure:"content" json:"content"`
 }
 
-type OutputLog struct {
-	Uuid      string `mapstructure:"uuid" json:"uuid"`
-	Name      string `mapstructure:"name" json:"name"`
-	AccountId uint32 `mapstructure:"account_id" json:"account_id"`
-	DateTime  string `mapstructure:"timestamp" json:"timestamp"`
-	Content   string `mapstructure:"content" json:"content"`
-}
-
 type createLog struct {
-	AccountId uint32 `json:"account_id"`
-	Name      string `json:"name"`
-	Timestamp string `json:"timestamp"`
-	Content   string `json:"content"`
+	AccountId uint32     `json:"account_id"`
+	Name      string     `json:"name"`
+	Timestamp CustomTime `json:"timestamp"`
+	Content   string     `json:"content"`
 }
 
 type createValidationErr struct {
@@ -53,7 +42,77 @@ type createValidationErr struct {
 	Errors  map[string]string `json:"errors"`
 }
 
-var db *meilisearch.Client
+// Move custom time to separate dir
+type CustomTime struct {
+	time.Time
+}
+
+func (ct *CustomTime) UnmarshalJSON(b []byte) (err error) {
+    s := strings.Trim(string(b), "\"")
+    if s == "null" {
+       ct.Time = time.Time{}
+       return
+    }
+    ct.Time, err = time.Parse(layout, s)
+    return
+}
+
+func (ct *CustomTime) MarshalJSON() ([]byte, error) {
+  if ct.Time.UnixNano() == nilTime {
+    return []byte("null"), nil
+  }
+  return []byte(fmt.Sprintf("\"%s\"", ct.Time.Format(layout))), nil
+}
+
+var nilTime = (time.Time{}).UnixNano()
+func (ct *CustomTime) IsSet() bool {
+    return ct.UnixNano() != nilTime
+}
+
+func decode(input, output interface{}) error {
+	config := &mapstructure.DecoderConfig{
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			stringToUUIDHookFunc(),
+			stringToCustomTimeHookFunc(),
+		),
+		Result: &output,
+	}
+
+	decoder, err := mapstructure.NewDecoder(config)
+	if err != nil {
+		return err
+	}
+
+	return decoder.Decode(input)
+}
+
+func stringToUUIDHookFunc() mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf(uuid.UUID{}) {
+			return data, nil
+		}
+
+		return uuid.Parse(data.(string))
+	}
+}
+
+func stringToCustomTimeHookFunc() mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf(CustomTime{}) {
+			return data, nil
+		}
+
+		tm, _ := time.Parse(layout, data.(string))
+
+		return CustomTime{tm}, nil
+	}
+}
 
 func RegisterRoutes(r *chi.Mux, dbInstance *meilisearch.Client) {
 	db = dbInstance
@@ -62,10 +121,6 @@ func RegisterRoutes(r *chi.Mux, dbInstance *meilisearch.Client) {
 		r.Use(AccountContext)
 		r.Get("/", List)
 		r.Post("/", Create)
-		// r.Route("/{logId:[a-zA-Z0-9\\-]+}", func(r chi.Router) {
-		// 	r.Use(LogContext)
-		// 	r.Get("/", Read)
-		// })
 	})
 }
 
@@ -86,26 +141,6 @@ func AccountContext(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), accountIdKey, accountIdInt)
-
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func LogContext(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logId := chi.URLParam(r, string(logIdKey))
-		if logId == "" {
-			http.NotFound(w, r)
-			return
-		}
-
-		logUuid, err := uuid.Parse(logId)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), logIdKey, logUuid)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -136,10 +171,13 @@ func List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var logs []OutputLog
-	errtwo := mapstructure.Decode(resp.Hits, &logs)
-	if errtwo != nil {
-		fmt.Println("Error decoding map to log struct:", errtwo)
+	var logs []Log
+	mapErr := decode(resp.Hits, &logs)
+	// mapErr := mapstructure.Decode(resp.Hits, &logs)
+	if mapErr != nil {
+		fmt.Println("Error decoding map to logs struct:", mapErr)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(mapErr)
 		return
 	}
 
@@ -149,7 +187,6 @@ func List(w http.ResponseWriter, r *http.Request) {
 
 func Create(w http.ResponseWriter, r *http.Request) {
 	accountId := r.Context().Value(accountIdKey).(int)
-	var unmarshalErr *json.UnmarshalTypeError
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
@@ -160,27 +197,13 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	var cl createLog
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
-	err := d.Decode(&cl)
+	d.Decode(&cl)
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if err != nil {
-		var msg string
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		if errors.As(err, &unmarshalErr) {
-			msg = "Bad Request. Wrong Type provided for field " + unmarshalErr.Field
-		} else {
-			msg = "Bad Request " + err.Error()
-		}
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": msg,
-		})
-		return
-	}
-
 	var valErr createValidationErr
 
-	if cl.Name == "" || cl.Timestamp == "" || cl.Content == "" {
+	if cl.Name == "" || ! cl.Timestamp.IsSet() || cl.Content == "" {
 		valErr.Message = "Validation error occurred."
 		valErr.Errors = make(map[string]string)
 	}
@@ -189,8 +212,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		valErr.Errors["name"] = "'name' field is required."
 	}
 
-	// TODO: validate timestamp format
-	if cl.Timestamp == "" {
+	if ! cl.Timestamp.IsSet() {
 		valErr.Errors["timestamp"] = "'timestamp' field is required."
 	}
 
@@ -199,7 +221,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(valErr.Message) > 0 {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(valErr)
 		return
 	}
@@ -217,21 +239,15 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	task, err := index.AddDocuments(documents, "uuid")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	_, docErr := index.AddDocuments(documents, "uuid")
+	if docErr != nil {
+		syslog.Println(docErr)
+		json.NewEncoder(w).Encode(docErr)
+		return
 	}
-
-	fmt.Println(task.TaskUID)
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Log successfully processed.",
 	})
-}
-
-func doesFileExist(filePath string) bool {
-	_, filePathErr := os.Stat(filePath)
-	return !os.IsNotExist(filePathErr)
 }

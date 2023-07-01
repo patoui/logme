@@ -95,9 +95,8 @@ make test
 
 ## TODO
 
-- Add test database clean up
+- Fix tests to work with Meilisearch
 - Add account routes (create, update, etc.)
 - Add route authentication
 - Add concurrency to request handling
-- Add log search
 - Add meta data tags to enable better searches
