@@ -8,7 +8,9 @@ import (
 	chi "github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"github.com/meilisearch/meilisearch-go"
-	"github.com/patoui/logme/internal/logme"
+
+	"github.com/patoui/logme/internal/db"
+	"github.com/patoui/logme/internal/routes"
 )
 
 func main() {
@@ -37,7 +39,7 @@ func LoadEnv() {
 }
 
 func CreateNewServer() *Server {
-	conn, err := logme.Connection()
+	conn, err := db.Connection()
 	if err != nil {
 		panic(err)
 	}
@@ -49,6 +51,6 @@ func CreateNewServer() *Server {
 }
 
 func (s *Server) MountHandlers() {
-	logme.RegisterRoutes(s.Router, s.Db)
-	s.Router.Get("/", logme.Home)
+	routes.RegisterRoutes(s.Router, s.Db)
+	s.Router.Get("/", routes.Home)
 }

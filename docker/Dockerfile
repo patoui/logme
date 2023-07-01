@@ -1,4 +1,4 @@
-FROM golang:1.18.2-alpine3.16
+FROM golang:1.20.5-alpine3.18
 
 COPY go.mod go.sum /go/src/github.com/patoui/logme/
 WORKDIR /go/src/github.com/patoui/logme
