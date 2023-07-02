@@ -81,7 +81,6 @@ make test
 
 ## TODO
 
-- Fix tests to work with Meilisearch
 - Add account routes (create, update, etc.)
 - Add route authentication
 - Add concurrency to request handling
