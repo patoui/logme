@@ -31,6 +31,12 @@ server:
 test:
 	docker exec -it logme_server /bin/sh -c "go test"
 
+clickhouse:
+	docker-compose -f docker-compose.yml exec logs /usr/bin/clickhouse --client -d logs
+
+psql:
+	docker-compose -f docker-compose.yml exec database psql -U admin -d main
+
 clear_index:
 	$(eval ID := $(shell docker ps --filter "name=logme_meilisearch" -q))
 	$(eval MEILISEARCH_PORT := $(shell docker port ${ID} | sed 's/.*://' | head -n 1))

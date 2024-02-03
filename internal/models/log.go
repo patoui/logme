@@ -1,11 +1,13 @@
 package models
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/mitchellh/mapstructure"
@@ -31,7 +33,7 @@ type CreateLog struct {
 	Content   string     `json:"content"`
 }
 
-func (log *CreateLog) Create(db *meilisearch.Client) (error) {
+func (log *CreateLog) Create(db *meilisearch.Client, dbLogs driver.Conn) (error) {
     index, err := index(db)
     if err != nil {
     	return err
@@ -49,6 +51,16 @@ func (log *CreateLog) Create(db *meilisearch.Client) (error) {
     }
 
     _, docErr := index.AddDocuments(documents, "uuid")
+    dbLogs.Exec(
+    	context.Background(),
+	     fmt.Sprintf(
+			`INSERT INTO logs (account_id, dt, name, content) VALUES (%d, '%s', '%s', '%s')`,
+			log.AccountId,
+			log.Timestamp,
+			log.Name,
+			log.Content,
+		),
+    )
 
     return docErr
 }

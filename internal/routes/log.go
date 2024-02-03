@@ -1,19 +1,23 @@
 package routes
 
 import (
-    "context"
-    "encoding/json"
-    syslog "log"
-    "net/http"
-    "strconv"
+	"context"
+	"encoding/json"
+	syslog "log"
+	"net/http"
+	"strconv"
 
-    chi "github.com/go-chi/chi/v5"
-    "github.com/meilisearch/meilisearch-go"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	chi "github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/meilisearch/meilisearch-go"
 
-    "github.com/patoui/logme/internal/models"
+	"github.com/patoui/logme/internal/models"
 )
 
 var dbInstance *meilisearch.Client
+var dbLogs driver.Conn
+var dbMain *pgxpool.Pool
 
 const accountIdKey = "accountId"
 const layout = "2006-01-02 15:04:05"
@@ -23,12 +27,14 @@ type createValidationErr struct {
     Errors  map[string]string `json:"errors"`
 }
 
-func RegisterRoutes(r *chi.Mux, dbGlobal *meilisearch.Client) {
+func RegisterRoutes(r *chi.Mux, dbGlobal *meilisearch.Client, logsConn driver.Conn, mainConn *pgxpool.Pool) {
     dbInstance = dbGlobal
+    dbLogs = logsConn
+    dbMain = mainConn
 
     r.Route("/log/{accountId:[0-9]+}", func(r chi.Router) {
         r.Use(AccountContext)
-        r.Get("/", List)
+        r.Get("/", list)
         r.Post("/", Create)
     })
 }
@@ -55,7 +61,7 @@ func AccountContext(next http.Handler) http.Handler {
     })
 }
 
-func List(w http.ResponseWriter, r *http.Request) {
+func list(w http.ResponseWriter, r *http.Request) {
     q := r.URL.Query().Get("q")
     accountId := r.Context().Value(accountIdKey).(int)
 
@@ -115,7 +121,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
     cl.AccountId = accountId
 
-    docErr := cl.Create(dbInstance)
+    docErr := cl.Create(dbInstance, dbLogs)
     if docErr != nil {
         syslog.Println(docErr)
         json.NewEncoder(w).Encode(docErr)
