@@ -37,13 +37,6 @@ clickhouse:
 psql:
 	docker-compose -f docker-compose.yml exec database psql -U admin -d main
 
-clear_index:
-	$(eval ID := $(shell docker ps --filter "name=logme_meilisearch" -q))
-	$(eval MEILISEARCH_PORT := $(shell docker port ${ID} | sed 's/.*://' | head -n 1))
-	@curl -s \
-		-X DELETE "http://localhost:$(MEILISEARCH_PORT)/indexes/logs" \
-		-H 'Authorization: Bearer masterKey' > /dev/null
-
 tail:
 	$(eval ID := $(shell docker ps --filter "name=logme_server" -q))
 	docker logs -f ${ID}

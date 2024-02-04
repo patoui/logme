@@ -1,7 +1,7 @@
 package db
 
 import (
-	"crypto/tls"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -53,12 +53,16 @@ func LogsConnect() (driver.Conn, error) {
             fmt.Printf(format, v)
         },
         Debug: isDebug,
-        TLS: &tls.Config{
-            InsecureSkipVerify: true,
-        },
     })
 
     if err != nil {
+        return nil, err
+    }
+
+    if err := conn.Ping(context.Background()); err != nil {
+        if exception, ok := err.(*clickhouse.Exception); ok {
+            fmt.Printf("Exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
+        }
         return nil, err
     }
 
