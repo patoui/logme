@@ -1,7 +1,61 @@
 version: "3.7"
 
 services:
-  
+  server:
+    container_name: logme_server
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    env_file: .env
+    depends_on:
+      logs:
+        condition: service_healthy
+        restart: true
+      database:
+        condition: service_started
+      meilisearch:
+        condition: service_started
+    links:
+      - meilisearch
+    networks:
+      - app-network
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/go/src/github.com/patoui/logme
+
+  logs:
+    container_name: logme_clickhouse_database
+    image: clickhouse/clickhouse-server:23.11.5.29-alpine
+    ports:
+      - 8123:8123
+      - 9000:9000
+      - 9009:9009
+    networks:
+      - app-network
+    volumes:
+      - ./docker/clickhouse/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 1s
+      timeout: 5s
+      retries: 10
+
+  database:
+    container_name: logme_postgres_database
+    image: postgres
+    environment:
+      POSTGRES_DB: main
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: P@ssword321
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    user: 999:999
+    volumes:
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d
+
   meilisearch:
     container_name: logme_meilisearch
     image: getmeili/meilisearch:latest
@@ -12,23 +66,6 @@ services:
     environment:
       - MEILI_MASTER_KEY=masterKey
       - MEILI_NO_ANALYTICS=true
-
-  server:
-    container_name: logme_server
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile
-    env_file: .env
-    depends_on:
-      - meilisearch
-    links:
-      - meilisearch
-    networks:
-      - app-network
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./:/go/src/github.com/patoui/logme
 
 #Docker Networks
 networks:
