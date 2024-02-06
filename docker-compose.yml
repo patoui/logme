@@ -13,10 +13,6 @@ services:
         restart: true
       database:
         condition: service_started
-      meilisearch:
-        condition: service_started
-    links:
-      - meilisearch
     networks:
       - app-network
     ports:
@@ -55,17 +51,6 @@ services:
     user: 999:999
     volumes:
       - ./docker/postgres/initdb:/docker-entrypoint-initdb.d
-
-  meilisearch:
-    container_name: logme_meilisearch
-    image: getmeili/meilisearch:latest
-    networks:
-      - app-network
-    ports:
-      - "7700"
-    environment:
-      - MEILI_MASTER_KEY=masterKey
-      - MEILI_NO_ANALYTICS=true
 
 #Docker Networks
 networks:
