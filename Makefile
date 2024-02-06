@@ -17,13 +17,13 @@ help:
 	    @echo ""
 
 list:
-	docker-compose -f docker-compose.yml ps
+	docker compose -f docker-compose.yml ps
 
 start:
-	docker-compose -f docker-compose.yml up -d
+	docker compose -f docker-compose.yml up -d
 
 stop:
-	docker-compose -f docker-compose.yml down
+	docker compose -f docker-compose.yml down
 
 server:
 	docker exec -it logme_server /bin/sh
@@ -32,10 +32,10 @@ test:
 	docker exec -it logme_server /bin/sh -c "go test"
 
 clickhouse:
-	docker-compose -f docker-compose.yml exec logs /usr/bin/clickhouse --client -d logs
+	docker compose -f docker-compose.yml exec logs /usr/bin/clickhouse --client -d logs
 
 psql:
-	docker-compose -f docker-compose.yml exec database psql -U admin -d main
+	docker compose -f docker-compose.yml exec database psql -U admin -d main
 
 tail:
 	$(eval ID := $(shell docker ps --filter "name=logme_server" -q))
