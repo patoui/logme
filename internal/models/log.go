@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -41,7 +42,7 @@ func (log *CreateLog) Create(dbLogs driver.Conn) error {
 			log.Name,
 			log.Content,
 		),
-		false,
+		os.Getenv("DB_LOGS_ASYNC_WAIT") == "true",
 	)
 
 	if logsErr != nil {

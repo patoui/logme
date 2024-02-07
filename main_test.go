@@ -1,26 +1,31 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/patoui/logme/internal/models"
 )
 
-func setupTest() *Server {
-	primaryIndex := "logs_test"
+func setupTest() (*Server, func()) {
 	s := Setup(map[string]string{
-		"PRIMARY_INDEX": primaryIndex,
+		"DB_LOGS_DEBUG":      "false",
+		"DB_LOGS_NAME":       "logs_test",
+		"DB_LOGS_ASYNC_WAIT": "true",
 	})
-	s.Db.DeleteIndex(primaryIndex)
-	s.Db.Index(primaryIndex)
-	return s
+
+	teardown := func() {
+		s.Logs.Exec(context.Background(), "TRUNCATE TABLE IF EXISTS logs_test.logs")
+		s.Logs.Close()
+	}
+
+	return s, teardown
 }
 
 // executeRequest, creates a new ResponseRecorder
@@ -50,7 +55,8 @@ func checkResponseContentType(t *testing.T, expected string, actual string) {
 }
 
 func TestHome(t *testing.T) {
-	s := setupTest()
+	s, teardown := setupTest()
+	defer teardown()
 
 	// Create a New Request
 	req, _ := http.NewRequest("GET", "/", nil)
@@ -62,11 +68,12 @@ func TestHome(t *testing.T) {
 	checkResponseCode(t, http.StatusOK, response.Code)
 
 	// We can use testify/require to assert values, as it is more convenient
-	require.Equal(t, "{\"message\":\"Welcome to LogMe!\"}\n", response.Body.String())
+	assert.Equal(t, "{\"message\":\"Welcome to LogMe!\"}\n", response.Body.String())
 }
 
 func TestLogCreate(t *testing.T) {
-	s := setupTest()
+	s, teardown := setupTest()
+	defer teardown()
 
 	br := strings.NewReader(`{"name":"error.log", "timestamp":"2022-12-31 12:36:58", "content":"this is a log entry", "account_id":321}`)
 	req, _ := http.NewRequest("POST", "/log/321", br)
@@ -75,11 +82,12 @@ func TestLogCreate(t *testing.T) {
 	response := executeRequest(req, s)
 
 	checkResponseCode(t, http.StatusCreated, response.Code)
-	require.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
+	assert.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
 }
 
 func TestLogList(t *testing.T) {
-	s := setupTest()
+	s, teardown := setupTest()
+	defer teardown()
 
 	br := strings.NewReader(`{"name":"error.log", "timestamp":"2022-12-31 12:36:58", "content":"this is a log entry", "account_id":321}`)
 	req, _ := http.NewRequest("POST", "/log/321", br)
@@ -88,22 +96,17 @@ func TestLogList(t *testing.T) {
 	response := executeRequest(req, s)
 
 	checkResponseCode(t, http.StatusCreated, response.Code)
-	require.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
-
-	// TODO: find better approach
-	// sleep to wait for document addition to occur
-	time.Sleep(500 * time.Millisecond)
+	assert.Equal(t, "{\"message\":\"Log successfully processed.\"}\n", response.Body.String())
 
 	gReq, _ := http.NewRequest("GET", "/log/321", nil)
-
 	gResponse := executeRequest(gReq, s)
 
 	checkResponseCode(t, http.StatusOK, gResponse.Code)
 	checkResponseContentType(t, "application/json", gResponse.Header().Get("Content-Type"))
 	var logs []models.Log
 	json.NewDecoder(gResponse.Body).Decode(&logs)
-	require.EqualValues(t, 1, len(logs))
+	assert.Equal(t, 1, len(logs))
 	lastLog := logs[len(logs)-1]
-	require.EqualValues(t, "this is a log entry", lastLog.Content)
-	require.EqualValues(t, 321, lastLog.AccountId)
+	assert.Equal(t, "this is a log entry", lastLog.Content)
+	assert.Equal(t, uint32(321), *lastLog.AccountId)
 }
