@@ -1,0 +1,42 @@
+{{define "title"}}{{.Title}}{{end}}
+{{define "styles"}}
+<style>
+	table, th, td {
+		border: 1px solid black;
+	}
+	table {
+		margin-bottom: 5px;
+	}
+	th, td {
+		padding: 5px;
+	}
+</style>
+{{end}}
+{{define "body"}}
+<div>
+	<h1>Logs</h1>
+	<table>
+		<thead>
+			<tr>
+				<th>UUID</th>
+				<th>Name</th>
+				<th>Account ID</th>
+				<th>Content</th>
+				<th>Date & time</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{range .Logs}}
+			<tr>
+				<td>{{.Uuid}}</td>
+				<td>{{.Name}}</td>
+				<td>{{.AccountId}}</td>
+				<td>{{.Content}}</td>
+				<td>{{.DateTime}}</td>
+			</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+{{end}}
+{{define "scripts"}}{{end}}
