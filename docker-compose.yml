@@ -13,6 +13,8 @@ services:
         restart: true
       database:
         condition: service_started
+      cache:
+        condition: service_started
     networks:
       - app-network
     ports:
@@ -52,7 +54,12 @@ services:
     volumes:
       - ./docker/postgres/initdb:/docker-entrypoint-initdb.d
 
-#Docker Networks
+  cache:
+    container_name: logme_cache
+    image: valkey/valkey:7.2-alpine3.19
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge

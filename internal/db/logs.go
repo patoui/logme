@@ -27,44 +27,44 @@ func LogsConnect() (driver.Conn, error) {
 		isDebug = true
 	}
 
-    conn, err := clickhouse.Open(&clickhouse.Options{
-        Addr: []string{addr},
-        Auth: clickhouse.Auth{
-            Database: dbName,
-            // Username: "default",
-            // Password: "<DEFAULT_USER_PASSWORD>",
-        },
-        Compression: &clickhouse.Compression{
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{addr},
+		Auth: clickhouse.Auth{
+			Database: dbName,
+			// Username: "default",
+			// Password: "<DEFAULT_USER_PASSWORD>",
+		},
+		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
-        },
-  		Settings: clickhouse.Settings{
+		},
+		Settings: clickhouse.Settings{
 			"max_execution_time": 60,
 		},
-        ClientInfo: clickhouse.ClientInfo{
-            Products: []struct {
-                Name    string
-                Version string
-            }{
-                {Name: "an-example-go-client", Version: "0.1"},
-            },
-        },
+		ClientInfo: clickhouse.ClientInfo{
+			Products: []struct {
+				Name    string
+				Version string
+			}{
+				{Name: "an-example-go-client", Version: "0.1"},
+			},
+		},
 
-        Debugf: func(format string, v ...interface{}) {
-            fmt.Printf(format, v)
-        },
-        Debug: isDebug,
-    })
+		Debugf: func(format string, v ...interface{}) {
+			fmt.Printf(format, v)
+		},
+		Debug: isDebug,
+	})
 
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    if err := conn.Ping(context.Background()); err != nil {
-        if exception, ok := err.(*clickhouse.Exception); ok {
-            fmt.Printf("Exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
-        }
-        return nil, err
-    }
+	if err := conn.Ping(context.Background()); err != nil {
+		if exception, ok := err.(*clickhouse.Exception); ok {
+			fmt.Printf("Exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
+		}
+		return nil, err
+	}
 
-    return conn, nil
+	return conn, nil
 }

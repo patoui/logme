@@ -4,16 +4,21 @@ help:
 	    @echo ""
 	    @echo "DOCKER"
 	    @echo ""
-	    @echo "list            - List the docker containers                      - ex: make list"
-	    @echo "start           - Start the docker containers                     - ex: make start"
-	    @echo "stop            - Stop the docker containers                      - ex: make stop"
+	    @echo "list            - List the docker containers       - ex: make list"
+	    @echo "start           - Start the docker containers      - ex: make start"
+	    @echo "stop            - Stop the docker containers       - ex: make stop"
 	    @echo ""
 	    @echo "CLIs"
 	    @echo ""
-	    @echo "server          - Access go container                             - ex: make server"
-	    @echo "test            - Run tests                                       - ex: make test"
-	    @echo "clear_index     - Clear the 'log' index                           - ex: make clear_index"
-	    @echo "tail            - Tail the app logs                               - ex: make tail"
+	    @echo "server          - Access go container              - ex: make server"
+	    @echo "test            - Run tests                        - ex: make test"
+	    @echo "clickhouse      - Access the clickhouse CLI        - ex: make clickhouse"
+	    @echo "psql            - Access the PostgreSQL CLI        - ex: make psql"
+	    @echo "valkey          - Access the Valkey CLI            - ex: make valkey"
+	    @echo ""
+	    @echo "HELPERS"
+	    @echo ""
+	    @echo "tail            - Tail the app logs                - ex: make tail"
 	    @echo ""
 
 list:
@@ -36,6 +41,9 @@ clickhouse:
 
 psql:
 	docker compose -f docker-compose.yml exec database psql -U admin -d main
+
+valkey:
+	docker compose -f docker-compose.yml exec cache valkey-cli
 
 tail:
 	$(eval ID := $(shell docker ps --filter "name=logme_server" -q))

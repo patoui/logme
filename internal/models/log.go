@@ -2,17 +2,21 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	logger "log"
 	"os"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
+	"github.com/patoui/logme/internal/db"
 	"github.com/patoui/logme/internal/helpers"
 )
 
 const accountIdKey = "accountId"
 const layout = "2006-01-02 15:04:05"
+const LiveTailKey = "live_tail:logs"
 
 type Log struct {
 	Uuid      *uuid.UUID         `ch:"uuid" json:"uuid"`
@@ -47,6 +51,30 @@ func (log *CreateLog) Create(dbLogs driver.Conn) error {
 
 	if logsErr != nil {
 		return logsErr
+	}
+
+	cache, cClientErr := db.Cache()
+	if cClientErr != nil {
+		logger.Fatal(cClientErr)
+		return cClientErr
+	}
+	defer cache.Close()
+
+	logJson, marshalErr := json.Marshal(log)
+	if marshalErr != nil {
+		logger.Fatal(marshalErr)
+		return marshalErr
+	}
+
+	cacheCtx := context.Background()
+	cacheErr := cache.Do(
+		cacheCtx,
+		cache.B().Rpush().Key(LiveTailKey).Element(string(logJson)).Build(),
+	).Error()
+
+	if cacheErr != nil {
+		logger.Fatal(cacheErr)
+		return cacheErr
 	}
 
 	return logsErr

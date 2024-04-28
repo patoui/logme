@@ -9,6 +9,7 @@ import (
 	chi "github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/rueian/valkey-go"
 
 	"github.com/patoui/logme/internal/db"
 	"github.com/patoui/logme/internal/routes"
@@ -38,6 +39,7 @@ type Server struct {
 	Router *chi.Mux
 	Main   *pgxpool.Pool
 	Logs   driver.Conn
+	Cache  valkey.Client
 }
 
 func LoadEnv() {
@@ -58,14 +60,21 @@ func CreateNewServer() *Server {
 		panic(err)
 	}
 
+	cacheClient, err := db.Cache()
+	if err != nil {
+		panic(err)
+	}
+
 	return &Server{
 		Router: chi.NewRouter(),
 		Main:   mainConn,
 		Logs:   logsConn,
+		Cache:  cacheClient,
 	}
 }
 
 func (s *Server) MountHandlers() {
 	routes.RegisterRoutes(s.Router, s.Logs, s.Main)
 	s.Router.Get("/", routes.Home)
+	s.Router.Get("/ws", routes.Websocket)
 }
