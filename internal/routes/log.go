@@ -85,20 +85,6 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//    getBody, bodyErr := r.GetBody()
-
-	//    if bodyErr != nil {
-	//     panic(bodyErr)
-	//    }
-
-	//    copyBody, copyErr := getBody()
-
-	//    if copyErr != nil {
-	//     panic(copyErr)
-	// }
-
-	//    fmt.Printf("COPY BODY: %s\n", copyBody)
-
 	var cl models.CreateLog
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
@@ -127,7 +113,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cl.Timestamp.IsSet() {
-	    valErr.Errors["timestamp"] = "'timestamp' field is required."
+		valErr.Errors["timestamp"] = "'timestamp' field is required."
 	}
 
 	if cl.Content == "" {

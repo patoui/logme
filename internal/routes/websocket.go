@@ -20,23 +20,13 @@ type message struct {
 	Timestamp string `json:"timestamp"`
 }
 
-// func RegisterWebsocketRoutes(r *chi.Mux, cacheClient valkey.Client) {
-// 	cache = cacheClient
-
-// 	// r.Route("/ws/{accountId:[0-9]+}", func(r chi.Router) {
-// 	// 	r.Use(AccountContext)
-// 	r.Get("/", Websocket)
-// 	// })
-// }
-
+// TODO: check account ID against auth'ed user for access
 func Websocket(w http.ResponseWriter, r *http.Request) {
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-
-	// accountId := r.Context().Value(accountIdKey).(int)
 
 	go sendLiveTail(c)
 }
