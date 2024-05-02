@@ -62,7 +62,7 @@ func sendLiveTail(c *websocket.Conn) {
 
 			rawLogs, lPopErr := cache.Do(
 				ctx,
-				cache.B().Lpop().Key(models.LiveTailKey).Count(tailLen).Build(),
+				cache.B().Rpop().Key(models.LiveTailKey).Count(tailLen).Build(),
 			).AsStrSlice()
 
 			if lPopErr != nil {

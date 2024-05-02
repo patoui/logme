@@ -10,6 +10,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/patoui/logme/internal/models"
@@ -85,10 +86,10 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var cl models.CreateLog
+	var log models.Log
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
-	decodeErr := d.Decode(&cl)
+	decodeErr := d.Decode(&log)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -103,20 +104,20 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		Errors:  make(map[string]string),
 	}
 
-	if cl.Name == "" || !cl.Timestamp.IsSet() || cl.Content == "" {
+	if log.Name == "" || !log.DateTime.IsSet() || log.Content == "" {
 		valErr.Message = "Validation error occurred."
 		valErr.Errors = make(map[string]string)
 	}
 
-	if cl.Name == "" {
+	if log.Name == "" {
 		valErr.Errors["name"] = "'name' field is required."
 	}
 
-	if cl.Timestamp.IsSet() {
+	if log.DateTime.IsSet() {
 		valErr.Errors["timestamp"] = "'timestamp' field is required."
 	}
 
-	if cl.Content == "" {
+	if log.Content == "" {
 		valErr.Errors["content"] = "'content' field is required."
 	}
 
@@ -126,9 +127,10 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cl.AccountId = accountId
+	log.AccountId = uint32(accountId)
+	log.Uuid = uuid.New()
 
-	docErr := cl.Create(dbLogs)
+	docErr := log.Create(dbLogs)
 	if docErr != nil {
 		syslog.Println(docErr)
 		json.NewEncoder(w).Encode(docErr)

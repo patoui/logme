@@ -27,10 +27,19 @@
 				<th>Name</th>
 				<th>Account ID</th>
 				<th>Content</th>
-				<th>Date & time</th>
+				<th>Date &amp; time</th>
 			</tr>
 		</thead>
 		<tbody id="logs">
+			{{range .Logs}}
+				<tr>
+					<td>{{.Uuid}}</td>
+					<td>{{.Name}}</td>
+					<td>{{.AccountId}}</td>
+					<td>{{.Content}}</td>
+					<td>{{.DateTime.ToDateTime}}</td>
+				</tr>
+			{{end}}
 		</tbody>
 	</table>
 </div>
