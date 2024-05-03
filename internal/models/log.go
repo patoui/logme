@@ -15,15 +15,16 @@ import (
 )
 
 const accountIdKey = "accountId"
-const layout = "2006-01-02 15:04:05"
+const DateFormat = "2006-01-02 15:04:05"
 const LiveTailKey = "live_tail:logs"
 
 type Log struct {
-	Uuid      uuid.UUID          `ch:"uuid" json:"uuid"`
-	Name      string             `ch:"name" json:"name"`
-	AccountId uint32             `ch:"account_id" json:"account_id"`
-	Content   string             `ch:"content" json:"content"`
-	DateTime  helpers.CustomTime `ch:"dt" json:"timestamp"`
+	Uuid       uuid.UUID          `ch:"uuid" json:"uuid"`
+	Name       string             `ch:"name" json:"name"`
+	AccountId  uint32             `ch:"account_id" json:"account_id"`
+	Content    string             `ch:"content" json:"content"`
+	DateTime   helpers.CustomTime `ch:"dt" json:"timestamp"`
+	RecordedAt time.Time          `ch:"recorded_at" json:"recorded_at"`
 }
 
 func (log *Log) Create(dbLogs driver.Conn) error {
@@ -33,12 +34,13 @@ func (log *Log) Create(dbLogs driver.Conn) error {
 	logsErr := dbLogs.AsyncInsert(
 		ctx,
 		fmt.Sprintf(
-			`INSERT INTO logs (uuid, account_id, dt, name, content) VALUES ('%s', %d, '%s', '%s', '%s')`,
+			`INSERT INTO logs (uuid, account_id, dt, name, content, recorded_at) VALUES ('%s', %d, '%s', '%s', '%s', '%s')`,
 			uuid.New().String(),
 			log.AccountId,
-			log.DateTime.Time.Format("2006-01-02 15:04:05"),
+			log.DateTime.Time.Format(DateFormat),
 			log.Name,
 			log.Content,
+			log.RecordedAt.Format(DateFormat),
 		),
 		os.Getenv("DB_LOGS_ASYNC_WAIT") == "true",
 	)
@@ -87,21 +89,23 @@ func List(dbLogs driver.Conn, accountId int, query string) ([]Log, error) {
 	var logs []Log
 	for rows.Next() {
 		var currentLog struct {
-			Uuid      uuid.UUID `ch:"uuid"`
-			Name      string    `ch:"name"`
-			AccountId uint32    `ch:"account_id"`
-			Content   string    `ch:"content"`
-			DateTime  time.Time `ch:"dt"`
+			Uuid       uuid.UUID `ch:"uuid"`
+			Name       string    `ch:"name"`
+			AccountId  uint32    `ch:"account_id"`
+			Content    string    `ch:"content"`
+			DateTime   time.Time `ch:"dt"`
+			RecordedAt time.Time `ch:"recorded_at"`
 		}
 		if scanErr := rows.ScanStruct(&currentLog); scanErr != nil {
 			return nil, scanErr
 		}
 		logs = append(logs, Log{
-			Uuid:      currentLog.Uuid,
-			Name:      currentLog.Name,
-			AccountId: currentLog.AccountId,
-			Content:   currentLog.Content,
-			DateTime:  helpers.CustomTime{Time: currentLog.DateTime},
+			Uuid:       currentLog.Uuid,
+			Name:       currentLog.Name,
+			AccountId:  currentLog.AccountId,
+			Content:    currentLog.Content,
+			DateTime:   helpers.CustomTime{Time: currentLog.DateTime},
+			RecordedAt: currentLog.RecordedAt,
 		})
 	}
 

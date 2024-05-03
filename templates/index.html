@@ -27,7 +27,8 @@
 				<th>Name</th>
 				<th>Account ID</th>
 				<th>Content</th>
-				<th>Date &amp; time</th>
+				<th>Timestamp</th>
+				<th>Recorded At</th>
 			</tr>
 		</thead>
 		<tbody id="logs">
@@ -38,6 +39,7 @@
 					<td>{{.AccountId}}</td>
 					<td>{{.Content}}</td>
 					<td>{{.DateTime.ToDateTime}}</td>
+					<td>{{fdate .RecordedAt}}</td>
 				</tr>
 			{{end}}
 		</tbody>

@@ -7,6 +7,7 @@ import (
 	syslog "log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
@@ -129,6 +130,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	log.AccountId = uint32(accountId)
 	log.Uuid = uuid.New()
+	log.RecordedAt = time.Now()
 
 	docErr := log.Create(dbLogs)
 	if docErr != nil {

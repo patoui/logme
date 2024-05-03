@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"text/template"
+	"time"
 
 	"github.com/patoui/logme/internal/models"
 )
@@ -12,17 +13,23 @@ func Home(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	// TODO get account ID from route param
 	// accountId := r.Context().Value(accountIdKey).(int)
+	var err error
 
-	logs, mapErr := models.List(dbLogs, 321, q)
+	logs, err := models.List(dbLogs, 321, q)
 
-	if mapErr != nil {
-		log.Fatal(mapErr)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	t, _ := template.ParseFiles(
+	var t *template.Template
+	t = template.Must(template.New("base.html").Funcs(template.FuncMap{
+		"fdate": func(dt time.Time) string {
+			return dt.Format(models.DateFormat)
+		},
+	}).ParseFiles(
 		"templates/base.html",
 		"templates/index.html",
-	)
+	))
 
 	data := struct {
 		Title string
@@ -32,8 +39,8 @@ func Home(w http.ResponseWriter, r *http.Request) {
 		Logs:  logs,
 	}
 
-	err := t.Execute(w, data)
+	err = t.Execute(w, data)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }
