@@ -24,7 +24,7 @@ services:
 
   logs:
     container_name: logme_clickhouse_database
-    image: clickhouse/clickhouse-server:23.11.5.29-alpine
+    image: clickhouse/clickhouse-server:24.4.1.2088-alpine
     ports:
       - 8123:8123
       - 9000:9000
