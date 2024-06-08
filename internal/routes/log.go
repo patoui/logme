@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/patoui/logme/internal/models"
+	"github.com/patoui/logme/internal/model"
 )
 
 var dbLogs driver.Conn
@@ -65,7 +65,7 @@ func list(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	accountId := r.Context().Value(accountIdKey).(int)
 
-	logs, mapErr := models.List(dbLogs, accountId, q)
+	logs, mapErr := model.List(dbLogs, accountId, q)
 	if mapErr != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "application/json")
@@ -87,7 +87,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var log models.Log
+	var log model.Log
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	decodeErr := d.Decode(&log)
@@ -132,6 +132,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	log.Uuid = uuid.New()
 	log.RecordedAt = time.Now()
 
+	// TODO: queue for creation, instead of creating it as part of the request
 	docErr := log.Create(dbLogs)
 	if docErr != nil {
 		syslog.Println(docErr)

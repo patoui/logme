@@ -1,17 +1,16 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/rueian/valkey-go"
 
 	"github.com/patoui/logme/internal/db"
+	"github.com/patoui/logme/internal/helper"
 	"github.com/patoui/logme/internal/routes"
 )
 
@@ -26,7 +25,7 @@ func main() {
 }
 
 func Setup(overrides map[string]string) *Server {
-	LoadEnv()
+	helper.LoadEnv()
 	for k, v := range overrides {
 		os.Setenv(k, v)
 	}
@@ -40,13 +39,6 @@ type Server struct {
 	Main   *pgxpool.Pool
 	Logs   driver.Conn
 	Cache  valkey.Client
-}
-
-func LoadEnv() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 }
 
 func CreateNewServer() *Server {

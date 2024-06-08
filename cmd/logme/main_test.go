@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/patoui/logme/internal/models"
+	"github.com/patoui/logme/internal/model"
 )
 
 func setupTest() (*Server, func()) {
@@ -103,7 +103,7 @@ func TestLogList(t *testing.T) {
 
 	checkResponseCode(t, http.StatusOK, gResponse.Code)
 	checkResponseContentType(t, "application/json", gResponse.Header().Get("Content-Type"))
-	var logs []models.Log
+	var logs []model.Log
 	json.NewDecoder(gResponse.Body).Decode(&logs)
 	assert.Equal(t, 1, len(logs))
 	lastLog := logs[len(logs)-1]

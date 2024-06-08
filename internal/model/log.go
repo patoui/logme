@@ -1,4 +1,4 @@
-package models
+package model
 
 import (
 	"context"
@@ -10,21 +10,21 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
-	"github.com/patoui/logme/internal/db"
-	"github.com/patoui/logme/internal/helpers"
+	"github.com/patoui/logme/internal/global"
+	"github.com/patoui/logme/internal/helper"
+	"github.com/patoui/logme/internal/queue"
 )
 
 const accountIdKey = "accountId"
 const DateFormat = "2006-01-02 15:04:05"
-const LiveTailKey = "live_tail:logs"
 
 type Log struct {
-	Uuid       uuid.UUID          `ch:"uuid" json:"uuid"`
-	Name       string             `ch:"name" json:"name"`
-	AccountId  uint32             `ch:"account_id" json:"account_id"`
-	Content    string             `ch:"content" json:"content"`
-	DateTime   helpers.CustomTime `ch:"dt" json:"timestamp"`
-	RecordedAt time.Time          `ch:"recorded_at" json:"recorded_at"`
+	Uuid       uuid.UUID         `ch:"uuid" json:"uuid"`
+	Name       string            `ch:"name" json:"name"`
+	AccountId  uint32            `ch:"account_id" json:"account_id"`
+	Content    string            `ch:"content" json:"content"`
+	DateTime   helper.CustomTime `ch:"dt" json:"timestamp"`
+	RecordedAt time.Time         `ch:"recorded_at" json:"recorded_at"`
 }
 
 func (log *Log) Create(dbLogs driver.Conn) error {
@@ -49,28 +49,17 @@ func (log *Log) Create(dbLogs driver.Conn) error {
 		return logsErr
 	}
 
-	cache, cClientErr := db.Cache()
-	if cClientErr != nil {
-		logger.Fatal(cClientErr)
-		return cClientErr
-	}
-	defer cache.Close()
-
 	logJson, marshalErr := json.Marshal(log)
 	if marshalErr != nil {
 		logger.Fatal(marshalErr)
 		return marshalErr
 	}
 
-	cacheCtx := context.Background()
-	cacheErr := cache.Do(
-		cacheCtx,
-		cache.B().Lpush().Key(LiveTailKey).Element(string(logJson)).Build(),
-	).Error()
+	queueErr := queue.Add(global.LiveTailKey, string(logJson))
 
-	if cacheErr != nil {
-		logger.Fatal(cacheErr)
-		return cacheErr
+	if queueErr != nil {
+		logger.Fatal(queueErr)
+		return queueErr
 	}
 
 	return logsErr
@@ -104,7 +93,7 @@ func List(dbLogs driver.Conn, accountId int, query string) ([]Log, error) {
 			Name:       currentLog.Name,
 			AccountId:  currentLog.AccountId,
 			Content:    currentLog.Content,
-			DateTime:   helpers.CustomTime{Time: currentLog.DateTime},
+			DateTime:   helper.CustomTime{Time: currentLog.DateTime},
 			RecordedAt: currentLog.RecordedAt,
 		})
 	}

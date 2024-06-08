@@ -6,14 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/patoui/logme/internal/db"
-	"github.com/patoui/logme/internal/models"
-	"github.com/rueian/valkey-go"
+	"github.com/patoui/logme/internal/global"
+	"github.com/patoui/logme/internal/queue"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 )
-
-var cache valkey.Client
 
 type message struct {
 	Message   string `json:"message"`
@@ -28,6 +25,7 @@ func Websocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: move this to the queue
 	go sendLiveTail(c)
 }
 
@@ -38,18 +36,8 @@ func sendLiveTail(c *websocket.Conn) {
 	for {
 		select {
 		case <-ticker:
-			cache, cacheErr := db.Cache()
-			if cacheErr != nil {
-				log.Fatal(cacheErr)
-				return
-			}
-			defer cache.Close()
-
 			// TODO: determine if optimizations are needed
-			tailLen, tailLenErr := cache.Do(
-				ctx,
-				cache.B().Llen().Key(models.LiveTailKey).Build(),
-			).ToInt64()
+			tailLen, tailLenErr := queue.Len(global.LiveTailKey)
 
 			if tailLenErr != nil {
 				log.Fatal(tailLenErr)
@@ -60,13 +48,10 @@ func sendLiveTail(c *websocket.Conn) {
 				continue
 			}
 
-			rawLogs, lPopErr := cache.Do(
-				ctx,
-				cache.B().Rpop().Key(models.LiveTailKey).Count(tailLen).Build(),
-			).AsStrSlice()
+			rawLogs, nextErr := queue.Next(global.LiveTailKey, tailLen)
 
-			if lPopErr != nil {
-				log.Fatal(lPopErr)
+			if nextErr != nil {
+				log.Fatal(nextErr)
 				return
 			}
 
