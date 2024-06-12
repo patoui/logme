@@ -54,7 +54,7 @@ func Next(queue string, count int64) ([]string, error) {
 	ctx := context.Background()
 	rawLogs, lPopErr := cache.Do(
 		ctx,
-		cache.B().Rpop().Key(global.LiveTailKey).Count(count).Build(),
+		cache.B().Rpop().Key(queue).Count(count).Build(),
 	).AsStrSlice()
 
 	if lPopErr != nil {

@@ -54,15 +54,22 @@ func (log *Log) Create(dbLogs driver.Conn) error {
 		logger.Fatal(marshalErr)
 		return marshalErr
 	}
+	stringLog := string(logJson)
 
-	queueErr := queue.Add(global.LiveTailKey, string(logJson))
-
-	if queueErr != nil {
-		logger.Fatal(queueErr)
-		return queueErr
+	// TODO: remove this and write to the websocket in a listener
+	tailErr := queue.Add(global.LiveTailKey, stringLog)
+	if tailErr != nil {
+		logger.Fatal(tailErr)
+		return tailErr
 	}
 
-	return logsErr
+	logCreatedErr := queue.Add(global.LogCreated, stringLog)
+	if logCreatedErr != nil {
+		logger.Fatal(logCreatedErr)
+		return logCreatedErr
+	}
+
+	return nil
 }
 
 func List(dbLogs driver.Conn, accountId int, query string) ([]Log, error) {
