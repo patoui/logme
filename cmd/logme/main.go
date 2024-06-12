@@ -1,16 +1,16 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
+	"github.com/rueian/valkey-go"
 
 	"github.com/patoui/logme/internal/db"
+	"github.com/patoui/logme/internal/helper"
 	"github.com/patoui/logme/internal/routes"
 )
 
@@ -25,7 +25,7 @@ func main() {
 }
 
 func Setup(overrides map[string]string) *Server {
-	LoadEnv()
+	helper.LoadEnv()
 	for k, v := range overrides {
 		os.Setenv(k, v)
 	}
@@ -38,13 +38,7 @@ type Server struct {
 	Router *chi.Mux
 	Main   *pgxpool.Pool
 	Logs   driver.Conn
-}
-
-func LoadEnv() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	Cache  valkey.Client
 }
 
 func CreateNewServer() *Server {
@@ -58,14 +52,21 @@ func CreateNewServer() *Server {
 		panic(err)
 	}
 
+	cacheClient, err := db.Cache()
+	if err != nil {
+		panic(err)
+	}
+
 	return &Server{
 		Router: chi.NewRouter(),
 		Main:   mainConn,
 		Logs:   logsConn,
+		Cache:  cacheClient,
 	}
 }
 
 func (s *Server) MountHandlers() {
 	routes.RegisterRoutes(s.Router, s.Logs, s.Main)
 	s.Router.Get("/", routes.Home)
+	s.Router.Get("/ws", routes.Websocket)
 }

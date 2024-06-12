@@ -1,0 +1,95 @@
+{{define "title"}}{{.Title}}{{end}}
+{{define "styles"}}
+<style>
+	table,
+	th,
+	td {
+		border: 1px solid black;
+	}
+
+	table {
+		margin-bottom: 5px;
+	}
+
+	th,
+	td {
+		padding: 5px;
+	}
+</style>
+{{end}}
+{{define "body"}}
+<div>
+	<h1>Logs</h1>
+	<table>
+		<thead>
+			<tr>
+				<th>UUID</th>
+				<th>Name</th>
+				<th>Account ID</th>
+				<th>Content</th>
+				<th>Timestamp</th>
+				<th>Recorded At</th>
+			</tr>
+		</thead>
+		<tbody id="logs">
+			{{range .Logs}}
+				<tr>
+					<td>{{.Uuid}}</td>
+					<td>{{.Name}}</td>
+					<td>{{.AccountId}}</td>
+					<td>{{.Content}}</td>
+					<td>{{.DateTime.ToDateTime}}</td>
+					<td>{{fdate .RecordedAt}}</td>
+				</tr>
+			{{end}}
+		</tbody>
+	</table>
+</div>
+{{end}}
+{{define "scripts"}}
+<script>
+	const ws = new WebSocket('ws://localhost:8080/ws');
+
+	ws.onopen = function () {
+		console.log('Websocket connection is open...');
+	};
+
+	ws.onmessage = function (evt) {
+		var received_msg = evt.data;
+		let eventData;
+
+		try {
+			eventData = JSON.parse(evt.data);
+		} catch (err) {
+			console.log('Unable to JSON parse event data');
+			console.error(err);
+			return;
+		}
+
+		let log;
+
+		try {
+			log = JSON.parse(eventData.message);
+		} catch (err) {
+			console.log('Unable to JSON parse event message');
+			console.error(err);
+			return;
+		}
+
+		const logs = document.querySelector('#logs');
+		const logRow = document.createElement('tr');
+
+		['uuid', 'name', 'account_id', 'content', 'timestamp'].forEach(element => {
+			const cell = document.createElement('td');
+			cell.textContent = log[element];
+			logRow.appendChild(cell);
+		});
+
+		logs.appendChild(logRow);
+	};
+
+	ws.onclose = function () {
+		console.log("Websocket connection has closed...");
+	};
+</script>
+{{end}}

@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   server:
     container_name: logme_server
@@ -9,9 +7,12 @@ services:
     env_file: .env
     depends_on:
       logs:
-        condition: service_healthy
-        restart: true
+        condition: service_started
       database:
+        condition: service_started
+      cache:
+        condition: service_started
+      queue:
         condition: service_started
     networks:
       - app-network
@@ -21,8 +22,8 @@ services:
       - ./:/go/src/github.com/patoui/logme
 
   logs:
-    container_name: logme_clickhouse_database
-    image: clickhouse/clickhouse-server:23.11.5.29-alpine
+    container_name: logme_clickhouse
+    image: clickhouse/clickhouse-server:24.5.1-alpine
     ports:
       - 8123:8123
       - 9000:9000
@@ -31,14 +32,9 @@ services:
       - app-network
     volumes:
       - ./docker/clickhouse/initdb:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
-      interval: 1s
-      timeout: 5s
-      retries: 10
 
   database:
-    container_name: logme_postgres_database
+    container_name: logme_postgres
     image: postgres
     environment:
       POSTGRES_DB: main
@@ -52,7 +48,22 @@ services:
     volumes:
       - ./docker/postgres/initdb:/docker-entrypoint-initdb.d
 
-#Docker Networks
+  cache:
+    container_name: logme_cache
+    image: valkey/valkey:7.2-alpine3.19
+    networks:
+      - app-network
+
+  queue:
+    container_name: logme_queue
+    build:
+      context: .
+      dockerfile: ./docker/queue/Dockerfile
+    depends_on:
+      - cache
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge

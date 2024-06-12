@@ -7,12 +7,14 @@ import (
 	syslog "log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	chi "github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/patoui/logme/internal/models"
+	"github.com/patoui/logme/internal/model"
 )
 
 var dbLogs driver.Conn
@@ -63,7 +65,7 @@ func list(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	accountId := r.Context().Value(accountIdKey).(int)
 
-	logs, mapErr := models.List(dbLogs, accountId, q)
+	logs, mapErr := model.List(dbLogs, accountId, q)
 	if mapErr != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "application/json")
@@ -85,24 +87,10 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//    getBody, bodyErr := r.GetBody()
-
-	//    if bodyErr != nil {
-	//     panic(bodyErr)
-	//    }
-
-	//    copyBody, copyErr := getBody()
-
-	//    if copyErr != nil {
-	//     panic(copyErr)
-	// }
-
-	//    fmt.Printf("COPY BODY: %s\n", copyBody)
-
-	var cl models.CreateLog
+	var log model.Log
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
-	decodeErr := d.Decode(&cl)
+	decodeErr := d.Decode(&log)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -117,20 +105,20 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		Errors:  make(map[string]string),
 	}
 
-	if cl.Name == "" || !cl.Timestamp.IsSet() || cl.Content == "" {
+	if log.Name == "" || !log.DateTime.IsSet() || log.Content == "" {
 		valErr.Message = "Validation error occurred."
 		valErr.Errors = make(map[string]string)
 	}
 
-	if cl.Name == "" {
+	if log.Name == "" {
 		valErr.Errors["name"] = "'name' field is required."
 	}
 
-	if cl.Timestamp.IsSet() {
-	    valErr.Errors["timestamp"] = "'timestamp' field is required."
+	if log.DateTime.IsSet() {
+		valErr.Errors["timestamp"] = "'timestamp' field is required."
 	}
 
-	if cl.Content == "" {
+	if log.Content == "" {
 		valErr.Errors["content"] = "'content' field is required."
 	}
 
@@ -140,9 +128,12 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cl.AccountId = accountId
+	log.AccountId = uint32(accountId)
+	log.Uuid = uuid.New()
+	log.RecordedAt = time.Now()
 
-	docErr := cl.Create(dbLogs)
+	// TODO: queue for creation, instead of creating it as part of the request
+	docErr := log.Create(dbLogs)
 	if docErr != nil {
 		syslog.Println(docErr)
 		json.NewEncoder(w).Encode(docErr)

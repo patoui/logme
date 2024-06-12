@@ -16,4 +16,4 @@ RUN go install github.com/githubnemo/CompileDaemon@latest
 
 EXPOSE 8080 8080
 
-ENTRYPOINT CompileDaemon -build='go build -o build/logme -buildvcs=false github.com/patoui/logme' -command='./build/logme' -color=true 2>&1
+ENTRYPOINT CompileDaemon -build='go build -o build/logme -buildvcs=false github.com/patoui/logme/cmd/logme' -command='./build/logme' -color=true 2>&1
